@@ -125,26 +125,8 @@
         </div>
       </div>
 
-      <!-- Full-Width Banner 1: V/C Chart -->
-      <div class="chart-banner-card margin-bottom">
-        <div class="banner-header">
-          <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
-          <span class="chart-tip">💡 可拖動下方 slider 滑塊或滾動滑鼠進行點位縮放</span>
-        </div>
-        <div id="vcChart" class="chart-box-banner"></div>
-      </div>
-
-      <!-- Full-Width Banner 2: Speed Chart -->
-      <div class="chart-banner-card margin-bottom">
-        <div class="banner-header">
-          <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
-          <span class="chart-tip">💡 虛線表示該路段法定最高速限</span>
-        </div>
-        <div id="speedChart" class="chart-box-banner"></div>
-      </div>
-
-      <!-- Full Table Section with Multi-Filter -->
-      <div class="los-card-section">
+      <!-- 1. Full Table Section (先表後圖：表格置頂) -->
+      <div class="los-card-section margin-bottom">
         <div class="section-filter-header">
           <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
           
@@ -199,6 +181,24 @@
           </table>
         </div>
       </div>
+
+      <!-- 2. Full-Width Banner 1: V/C Chart (後圖：V/C 圖) -->
+      <div class="chart-banner-card margin-bottom">
+        <div class="banner-header">
+          <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
+          <span class="chart-tip">💡 動態 Y 軸上限（最高 V/C + 0.20）| 拖動 slider 縮放滑塊</span>
+        </div>
+        <div id="vcChart" class="chart-box-banner"></div>
+      </div>
+
+      <!-- 3. Full-Width Banner 2: Speed Chart (後圖：速率圖) -->
+      <div class="chart-banner-card margin-bottom">
+        <div class="banner-header">
+          <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
+          <span class="chart-tip">💡 虛線表示該路段法定最高速限</span>
+        </div>
+        <div id="speedChart" class="chart-box-banner"></div>
+      </div>
     </main>
 
     <!-- Tab 2: Target Links Management & Metadata Preview -->
@@ -217,7 +217,7 @@
         </div>
 
         <!-- Right: Real-time Link Metadata Preview Table -->
-        <div class="card">
+        <div class="card card-overflow-contain">
           <div class="card-header">
             <div>
               <h2>實時點位與對照屬性預覽表</h2>
@@ -225,17 +225,17 @@
             </div>
             <span class="badge-count" id="linksCountBadge">共 24 筆</span>
           </div>
-          <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+          <div class="table-responsive-contain">
             <table class="data-table-sm">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>路段代碼 (LinkID)</th>
-                  <th>偵測器代碼 (VDID)</th>
-                  <th>道路名稱</th>
-                  <th>方向</th>
-                  <th>型態</th>
-                  <th>車道數</th>
+                  <th style="width: 35px;">#</th>
+                  <th style="width: 140px;">路段代碼 (LinkID)</th>
+                  <th style="width: 170px;">偵測器代碼 (VDID)</th>
+                  <th style="width: 80px;">道路名稱</th>
+                  <th style="width: 60px;">方向</th>
+                  <th style="width: 60px;">型態</th>
+                  <th style="width: 65px;">車道數</th>
                 </tr>
               </thead>
               <tbody id="linksMetadataBody">

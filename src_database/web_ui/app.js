@@ -222,11 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderDashboardView() {
     const filtered = getFilteredResults();
-    renderCharts(filtered);
     renderTable(filtered);
+    renderCharts(filtered);
   }
 
-  // 6. Render Full-Width ECharts with dataZoom
+  // 6. Render Full-Width ECharts with Dynamic Y-axis Max for V/C
   function renderCharts(items) {
     if (!vcChart) vcChart = echarts.init(document.getElementById('vcChart'));
     if (!speedChart) speedChart = echarts.init(document.getElementById('speedChart'));
@@ -238,6 +238,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const morningSpd = items.map(x => x.m_speed);
     const eveningSpd = items.map(x => x.e_speed);
     const speedLimits = items.map(x => x.speed_limit);
+
+    // Dynamic V/C Y-axis Max Calculation (Max V/C in results + 0.20)
+    const maxRawVC = Math.max(...morningVC, ...eveningVC, 0);
+    const dynamicYMax = Math.max(1.0, Math.ceil((maxRawVC + 0.20) * 100) / 100);
 
     const vcOption = {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -255,8 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       yAxis: {
         type: 'value',
-        name: 'V/C 比值',
-        max: 1.2,
+        name: `V/C 比值 (上限 ${dynamicYMax})`,
+        max: dynamicYMax,
         nameTextStyle: { color: '#94a3b8' },
         axisLine: { lineStyle: { color: '#475569' } },
         splitLine: { lineStyle: { color: '#1e293b' } }
