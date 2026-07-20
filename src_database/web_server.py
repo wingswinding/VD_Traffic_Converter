@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import glob
+import datetime
 import urllib.parse
 import subprocess
 import threading
@@ -204,14 +205,14 @@ def run_server(port=8000):
     server_address = ('', port)
     httpd = HTTPServer(server_address, VDRequestHandler)
     print(f"==================================================")
-    print(f"VD 交通量轉換與服務水準 Web UI 伺服器已啟動！")
-    print(f"請在瀏覽器開啟: http://localhost:{port}")
-    print(f"按下 Ctrl+C 可停止伺服器")
+    print(f"VD Traffic Report Web UI Server Started!")
+    print(f"Please open browser at: http://localhost:{port}")
+    print(f"Press Ctrl+C to stop server")
     print(f"==================================================")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n伺服器已關閉。")
+        print("\nServer stopped.")
 
 if __name__ == '__main__':
     port_input = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 8000

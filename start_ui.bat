@@ -1,10 +1,10 @@
 @echo off
-chcp 65001 > nul
-title VD 交通量與服務水準分析系統 Web UI
+@chcp 65001 > nul
+title VD Traffic Report Web UI
 
 echo ====================================================
-echo   VD 交通量與服務水準 (LOS) 自動化分析系統
-echo   即將為您啟動 Web UI 繪圖與管理介面...
+echo   VD Traffic Report Automation Web UI
+echo   Starting server & opening browser at http://localhost:8000 ...
 echo ====================================================
 echo.
 
