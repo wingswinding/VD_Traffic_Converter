@@ -1,0 +1,32 @@
+# Windows Executables (large binary files)
+*.exe
+
+# Office Temporary / Lock Files
+~$*
+
+# Python cache and build directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Data outputs & converted files
+converted_csvs/
+*分析結果*.xlsx
+
+# Backups
+backup/
+backup_*
+
+# User-specific developer environment files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
