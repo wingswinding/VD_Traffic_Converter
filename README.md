@@ -1,47 +1,83 @@
-# VD 交通量轉換與自動化處理系統
+# VD 交通量轉換與服務水準分析自動化系統
 
 ## 專案概述
-這是一個 VD 交通量資料轉換與自動化處理系統，主要用於將下載的車輛偵測器（VD）原始 XML 資料進行解析，擷取特定路段（LinkID）的交通量，並自動化整併成 5 分鐘或 60 分鐘週期的 CSV/Excel 分析報表。本專案目前已由舊版 Excel 轉檔模式，演進至新版的 **SQLite 資料庫儲存與運算模式**，可支援從高公局網站直接下載 1 分鐘壓縮檔並進行加權平均車速統計。
+本專案為 **VD (Vehicle Detector) 交通量資料轉換、速限比對、道路容量計算與服務水準 (LOS) 分析自動化系統**。
+系統自動連結高公局開放資料 API 下載歷史 1 分鐘 XML.GZ 點位數據，擷取特定目標路段 (LinkID)，進行車輛當量 (PCU) 換算、流量加權平均車速統計，並對照交通部《公路容量手冊》與相關規範，自動產出含 **雙碼服務水準 (A1~F6)** 之 OpenPyXL 格式 6 Sheet 綜合 Excel 分析報表。
 
-## 技術棧
-- **資料庫與資料處理**：SQLite3, Python (Pandas)
-- **網路爬蟲與下載**：Requests (支援 Keep-Alive, Rate-limiting, User-Agent 偽裝)
-- **XML 解析**：Python `xml.etree.ElementTree` 串流解析
-- **傳統工具（舊版備份）**：Windows Executables (.exe / PyInstaller 封裝)
-- **環境規格**：Python 3.10.x+
+---
 
 ## 專案目錄架構
-- [src_database/](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/)：新版資料庫核心模組
-  - [db_setup.py](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/db_setup.py)：SQLite 資料庫初始化與索引建立
-  - [downloader.py](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/downloader.py)：高公局 1 分鐘 XML.GZ 歷史資料 polite 下載器
-  - [import_data.py](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/import_data.py)：XML.GZ 串流解析與目標路段高效匯入器
-  - [query_report.py](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/query_report.py)：加權平均車速與 PCU 報表 SQL/Pandas 查詢器
-  - [target_links.txt](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/target_links.txt)：要進行過濾與計算的目標 LinkID 列表
-- [legacy_files/](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/legacy_files/)：舊版執行檔與傳統工具備份目錄
-- [VD（空白）231120 車種代號修正/](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/VD（空白）231120%20車種代號修正/)：舊版 Excel 範本與手動統計結果
-- [VD 點位一覽表（230320）.xlsx](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/VD%20點位一覽表（230320）.xlsx)：全國 VD 偵測器與 LinkID 對照表
 
-## 使用說明 (資料庫模式)
+```text
+VD_Traffic_Converter/
+├── reference_files/                      # 【參考規範與點位對照檔】
+│   ├── 1150526 交通部_路段編碼資料標準第二版.pdf # MOTC 14碼路段編碼標準
+│   ├── OUTPUT表格範例.xlsx               # Excel 雙欄標頭報表範例
+│   ├── VD 點位一覽表（230320）.xlsx       # 歷史點位對照備份檔
+│   ├── vd_point_list.xml                # 靜態 VD 點位與 LinkID 對照表
+│   ├── 國道LOS.xlsx                     # 服務水準 A1~F6 雙碼劃分標準
+│   ├── 國道各主要路段速限表115.6.odt     # 各主線與匝道路段速限標準
+│   └── 道路容量計算.xlsx                 # 運研所主線與匝道容量對照表
+│
+├── src_database/                         # 【核心程式與數據庫】
+│   ├── generate_traffic_report.py        # 核心自動化分析與報表生成主程式
+│   ├── target_links.txt                  # 分析目標 LinkID 清單設定檔
+│   └── downloads/                        # 歷史 XML.GZ 自動下載快取庫
+│
+├── output/                               # 【分析成果輸出】
+│   └── VD_traffic_report_YYYYMMDD.xlsx   # 產出之 6 Sheet 綜合分析 Excel 報表
+│
+├── README.md                             # 專案說明文件
+└── .gitignore                            # Git 版本控制忽略設定
+```
 
-1. **路段設定**：在 [target_links.txt](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/target_links.txt) 填入欲查詢的路段 LinkID（每行一筆）。
-2. **下載資料**：
-   執行 `downloader.py`（預設下載 2026/07/19 07:00 ~ 08:00 間 61 個分鐘檔至 `downloads/` 暫存資料夾）：
-   ```bash
-   python src_database/downloader.py
-   ```
-3. **匯入資料庫**：
-   執行 `import_data.py` 將 XML 資料過濾並寫入 `vd_traffic.db`：
-   ```bash
-   python src_database/import_data.py
-   ```
-4. **產出報表**：
-   執行 `query_report.py` 產出 PCU 交通量與加權平均速度報表：
-   ```bash
-   python src_database/query_report.py
-   ```
+---
 
-## 行為準則
-- 溝通請全程使用繁體中文。
-- 在修改系統核心轉檔邏輯、編寫腳本或優化 Excel 計算範本前，請先列出思考過程與預計執行步驟。
-- 嚴格遵守安全性設定，若需執行具破壞性或全機層級 (Full machine) 的終端機指令，必須先請求確認。
-- 每次修正/改版轉檔程式碼或調整 Excel 範本前，必須備份原始檔案到 `backup` 資料夾，尾綴為 `_YYYYMMDD_HHMMSS`。
+## 核心計算與邏輯規範
+
+1. **流量與當量換算 (PCPH)**：
+   * 小客車 (S)：$1.0$ PCU
+   * 大客車 (L)：$1.5$ PCU
+   * 聯結車 (T)：$2.0$ PCU
+   * 峰期單小時當量 = (2小時總 PCU) / 2
+
+2. **旅行速率 (KPH)**：
+   * 採車流量加權平均速率：$\text{Weighted Speed} = \frac{\sum (v_i \times q_i)}{\sum q_i}$
+
+3. **平常日與假日晨昏峰自動判定**：
+   * **平常日 (週一~週五)**：晨峰 `0700-0800`、`0800-0900`；昏峰 `1700-1800`、`1800-1900`
+   * **假日 (週六~週日)**：晨峰 `1000-1100`、`1100-1200`；昏峰 `1600-1700`、`1700-1800`
+
+4. **雙碼服務水準 (Level of Service, LOS)**：
+   * **第一碼 (字母 A~F)**：由 $V/C$ 比值決定 ($\le 0.25 \to \text{A}$, $\le 0.50 \to \text{B}$, $\le 0.80 \to \text{C}$, $\le 0.90 \to \text{D}$, $\le 1.00 \to \text{E}$, $> 1.00 \to \text{F}$)
+   * **第二碼 (數字 1~6)**：由車速比 $V / V_{\text{limit}}$ 決定 ($\ge 0.90 \to 1$, $\ge 0.80 \to 2$, $\ge 0.60 \to 3$, $\ge 0.40 \to 4$, $\ge 0.20 \to 5$, $< 0.20 \to 6$)
+
+5. **報表數值位數格式**：
+   * 道路容量 (Capacity)：整數（`#,##0`）
+   * 法定速限 (Speed Limit)：整數（`0`）
+   * 交通當量/車輛數 (Volume/PCU)：整數（`#,##0`）
+   * V/C 比值：小數點後兩位（`0.00`）
+   * 速率 (Speed)：小數點後一位（`0.0`）
+
+---
+
+## 報表工作表結構 (6 Sheets)
+
+* **Sheet 1: `國道主線`**（主線容量、速限、晨昏峰流量、V/C、速率、服務水準雙碼標註）
+* **Sheet 2: `國道匝道`**（匝道型態、出入別、容量、速限、晨昏峰流量、V/C、速率、服務水準雙碼標註）
+* **Sheet 3: `0700-0800`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）
+* **Sheet 4: `0800-0900`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）
+* **Sheet 5: `1700-1800`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）
+* **Sheet 6: `1800-1900`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）
+
+---
+
+## 快速使用說明
+
+1. **設定分析路段**：在 [src_database/target_links.txt](file:///c:/Users/Owner/Desktop/VD_Traffic_Converter/src_database/target_links.txt) 填入欲分析之 LinkID（每行一筆）。
+2. **執行報表生成**：
+   ```bash
+   python src_database/generate_traffic_report.py <YYYYMMDD>
+   ```
+   *(例如：`python src_database/generate_traffic_report.py 20260716`)*
+3. **取得結果**：產出之 Excel 檔將儲存於 `output/VD_traffic_report_YYYYMMDD.xlsx`。
