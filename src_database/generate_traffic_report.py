@@ -2,6 +2,7 @@ import os
 import sys
 import gzip
 import glob
+import shutil
 import urllib3
 import requests
 import datetime
@@ -16,6 +17,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET_LINKS_FILE = os.path.join(BASE_DIR, 'src_database', 'target_links.txt')
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'src_database', 'downloads')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+BACKUP_DIR = os.path.join(BASE_DIR, 'backup')
 
 # Search for vd_point_list.xml in reference_files or root
 VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'reference_files', 'vd_point_list.xml')
@@ -24,6 +26,20 @@ if not os.path.exists(VD_POINT_LIST_FILE):
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(BACKUP_DIR, exist_ok=True)
+
+# 0. Backup Mechanism Helper
+def backup_file_if_exists(file_path):
+    if os.path.exists(file_path):
+        filename = os.path.basename(file_path)
+        name, ext = os.path.splitext(filename)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"{name}_{timestamp}{ext}"
+        backup_path = os.path.join(BACKUP_DIR, backup_filename)
+        shutil.copy2(file_path, backup_path)
+        print(f"[Backup] Existing file backed up to: {backup_path}")
+        return backup_path
+    return None
 
 # 1. Table 4.7 Speed Limit -> Free Speed Vf mapping
 def get_free_speed(speed_limit):
@@ -253,6 +269,9 @@ def load_link_metadata(vd_xml_path, target_links):
 
 # 8. Generate Excel report with openpyxl in exact requested sheet order & number formatting rules:
 def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list, link_vdid_map):
+    # Perform backup if file already exists
+    backup_file_if_exists(output_file)
+    
     wb = openpyxl.Workbook()
     
     header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")

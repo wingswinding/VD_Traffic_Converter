@@ -24,12 +24,27 @@ VD_Traffic_Converter/
 │   ├── target_links.txt                  # 分析目標 LinkID 清單設定檔
 │   └── downloads/                        # 歷史 XML.GZ 自動下載快取庫
 │
+├── backup/                               # 【自動備份檔案庫】
+│   └── VD_traffic_report_YYYYMMDD_YYYYMMDD_HHMMSS.xlsx # 覆蓋舊檔前自動產生之時間戳備份
+│
 ├── output/                               # 【分析成果輸出】
 │   └── VD_traffic_report_YYYYMMDD.xlsx   # 產出之 6 Sheet 綜合分析 Excel 報表
 │
 ├── README.md                             # 專案說明文件
 └── .gitignore                            # Git 版本控制忽略設定
 ```
+
+---
+
+## 雙重備份機制 (Backup Mechanism)
+
+1. **版本控制備份 (Git Master)**：
+   * 本專案全面納入 Git 版本控制，所有 Python 腳本、設定檔與文檔變更皆有完整 Commit 紀錄。
+
+2. **檔案覆蓋自動備份 (Automatic Timestamped Backup)**：
+   * 當執行 `generate_traffic_report.py` 生成報表時，若 `output/` 目錄下已存在相同日期的舊報表檔，系統會**自動建立時間戳備份**，備份至 `backup/` 資料夾，檔名格式為：
+     `VD_traffic_report_YYYYMMDD_YYYYMMDD_HHMMSS.xlsx`
+   * 確保原有產出數據永不因誤操作覆蓋而遺失。
 
 ---
 
@@ -80,4 +95,4 @@ VD_Traffic_Converter/
    python src_database/generate_traffic_report.py <YYYYMMDD>
    ```
    *(例如：`python src_database/generate_traffic_report.py 20260716`)*
-3. **取得結果**：產出之 Excel 檔將儲存於 `output/VD_traffic_report_YYYYMMDD.xlsx`。
+3. **取得結果與備份**：產出之 Excel 檔將儲存於 `output/VD_traffic_report_YYYYMMDD.xlsx`；如有舊檔將自動備份至 `backup/`。
