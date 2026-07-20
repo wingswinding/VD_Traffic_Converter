@@ -30,3 +30,7 @@ backup_*
 *.njsproj
 *.sln
 *.swp
+
+# SQLite Databases and raw downloads
+src_database/vd_traffic.db
+src_database/downloads/
