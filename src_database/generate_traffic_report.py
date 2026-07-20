@@ -238,8 +238,12 @@ def load_link_metadata(vd_xml_path, target_links):
                 
     return metadata
 
-# 8. Generate Excel report with openpyxl in exact requested sheet order:
-# 1. 國道主線, 2. 國道匝道, 3-6. Raw hourly sheets
+# 8. Generate Excel report with openpyxl in exact requested sheet order & number formatting rules:
+# Capacity: Integer (#,##0)
+# Speed Limit: Integer (0)
+# Traffic Volume: Integer (#,##0)
+# V/C: 2 decimal places (0.00)
+# Speed: 1 decimal place (0.0)
 def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list):
     wb = openpyxl.Workbook()
     
@@ -293,17 +297,17 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
         ws_main.cell(row=row_idx, column=1, value=row['road_name']).alignment = align_center
         ws_main.cell(row=row_idx, column=2, value=row['segment']).alignment = align_left
         ws_main.cell(row=row_idx, column=3, value=row['direction']).alignment = align_center
-        ws_main.cell(row=row_idx, column=4, value=row['capacity']).number_format = '#,##0.0'
-        ws_main.cell(row=row_idx, column=5, value=row['speed_limit']).number_format = '0.0'
+        ws_main.cell(row=row_idx, column=4, value=round(row['capacity'])).number_format = '#,##0'
+        ws_main.cell(row=row_idx, column=5, value=round(row['speed_limit'])).number_format = '0'
         
-        ws_main.cell(row=row_idx, column=6, value=row['m_pcu']).number_format = '#,##0.0'
-        ws_main.cell(row=row_idx, column=7, value=row['m_vc']).number_format = '0.000000'
-        ws_main.cell(row=row_idx, column=8, value=row['m_speed']).number_format = '0.000000'
+        ws_main.cell(row=row_idx, column=6, value=round(row['m_pcu'])).number_format = '#,##0'
+        ws_main.cell(row=row_idx, column=7, value=row['m_vc']).number_format = '0.00'
+        ws_main.cell(row=row_idx, column=8, value=row['m_speed']).number_format = '0.0'
         ws_main.cell(row=row_idx, column=9, value=row['m_los']).alignment = align_center
         
-        ws_main.cell(row=row_idx, column=10, value=row['e_pcu']).number_format = '#,##0.0'
-        ws_main.cell(row=row_idx, column=11, value=row['e_vc']).number_format = '0.000000'
-        ws_main.cell(row=row_idx, column=12, value=row['e_speed']).number_format = '0.000000'
+        ws_main.cell(row=row_idx, column=10, value=round(row['e_pcu'])).number_format = '#,##0'
+        ws_main.cell(row=row_idx, column=11, value=row['e_vc']).number_format = '0.00'
+        ws_main.cell(row=row_idx, column=12, value=row['e_speed']).number_format = '0.0'
         ws_main.cell(row=row_idx, column=13, value=row['e_los']).alignment = align_center
         
         for c in range(1, 14):
@@ -355,17 +359,17 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
         ws_ramp.cell(row=row_idx, column=3, value=row['direction']).alignment = align_center
         ws_ramp.cell(row=row_idx, column=4, value=row['in_out']).alignment = align_center
         ws_ramp.cell(row=row_idx, column=5, value=row['destination']).alignment = align_center
-        ws_ramp.cell(row=row_idx, column=6, value=row['capacity']).number_format = '#,##0.0'
-        ws_ramp.cell(row=row_idx, column=7, value=row['speed_limit']).number_format = '0.0'
+        ws_ramp.cell(row=row_idx, column=6, value=round(row['capacity'])).number_format = '#,##0'
+        ws_ramp.cell(row=row_idx, column=7, value=round(row['speed_limit'])).number_format = '0'
         
-        ws_ramp.cell(row=row_idx, column=8, value=row['m_pcu']).number_format = '#,##0.0'
-        ws_ramp.cell(row=row_idx, column=9, value=row['m_vc']).number_format = '0.000000'
-        ws_ramp.cell(row=row_idx, column=10, value=row['m_speed']).number_format = '0.000000'
+        ws_ramp.cell(row=row_idx, column=8, value=round(row['m_pcu'])).number_format = '#,##0'
+        ws_ramp.cell(row=row_idx, column=9, value=row['m_vc']).number_format = '0.00'
+        ws_ramp.cell(row=row_idx, column=10, value=row['m_speed']).number_format = '0.0'
         ws_ramp.cell(row=row_idx, column=11, value=row['m_los']).alignment = align_center
         
-        ws_ramp.cell(row=row_idx, column=12, value=row['e_pcu']).number_format = '#,##0.0'
-        ws_ramp.cell(row=row_idx, column=13, value=row['e_vc']).number_format = '0.000000'
-        ws_ramp.cell(row=row_idx, column=14, value=row['e_speed']).number_format = '0.000000'
+        ws_ramp.cell(row=row_idx, column=12, value=round(row['e_pcu'])).number_format = '#,##0'
+        ws_ramp.cell(row=row_idx, column=13, value=row['e_vc']).number_format = '0.00'
+        ws_ramp.cell(row=row_idx, column=14, value=row['e_speed']).number_format = '0.0'
         ws_ramp.cell(row=row_idx, column=15, value=row['e_los']).alignment = align_center
         
         for c in range(1, 16):
@@ -400,30 +404,30 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
             vd_id = vd_info.get('vd_id', '')
             
             d = hourly_data[h_name][lid]
-            s_vol = d['S']
-            s_spd = (d['S_speed_vol'] / s_vol) if s_vol > 0 else 0
+            s_vol = round(d['S'])
+            s_spd = (d['S_speed_vol'] / d['S']) if d['S'] > 0 else 0
             
-            l_vol = d['L']
-            l_spd = (d['L_speed_vol'] / l_vol) if l_vol > 0 else 0
+            l_vol = round(d['L'])
+            l_spd = (d['L_speed_vol'] / d['L']) if d['L'] > 0 else 0
             
-            t_vol = d['T']
-            t_spd = (d['T_speed_vol'] / t_vol) if t_vol > 0 else 0
+            t_vol = round(d['T'])
+            t_spd = (d['T_speed_vol'] / d['T']) if d['T'] > 0 else 0
             
-            tot_veh = s_vol + l_vol + t_vol
-            tot_pcu = s_vol * 1.0 + l_vol * 1.5 + t_vol * 2.0
+            tot_veh = round(d['S'] + d['L'] + d['T'])
+            tot_pcu = round(d['S'] * 1.0 + d['L'] * 1.5 + d['T'] * 2.0)
             avg_spd = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
             
             ws.cell(row=row_idx, column=1, value=vd_id).alignment = align_center
             ws.cell(row=row_idx, column=2, value=lid).alignment = align_center
             ws.cell(row=row_idx, column=3, value=s_vol).number_format = '#,##0'
-            ws.cell(row=row_idx, column=4, value=s_spd).number_format = '0.00'
+            ws.cell(row=row_idx, column=4, value=s_spd).number_format = '0.0'
             ws.cell(row=row_idx, column=5, value=l_vol).number_format = '#,##0'
-            ws.cell(row=row_idx, column=6, value=l_spd).number_format = '0.00'
+            ws.cell(row=row_idx, column=6, value=l_spd).number_format = '0.0'
             ws.cell(row=row_idx, column=7, value=t_vol).number_format = '#,##0'
-            ws.cell(row=row_idx, column=8, value=t_spd).number_format = '0.00'
+            ws.cell(row=row_idx, column=8, value=t_spd).number_format = '0.0'
             ws.cell(row=row_idx, column=9, value=tot_veh).number_format = '#,##0'
-            ws.cell(row=row_idx, column=10, value=tot_pcu).number_format = '#,##0.0'
-            ws.cell(row=row_idx, column=11, value=avg_spd).number_format = '0.00'
+            ws.cell(row=row_idx, column=10, value=tot_pcu).number_format = '#,##0'
+            ws.cell(row=row_idx, column=11, value=avg_spd).number_format = '0.0'
             
             for c in range(1, 12):
                 ws.cell(row=row_idx, column=c).font = data_font
