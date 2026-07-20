@@ -116,12 +116,13 @@ def download_vd_data(date_str, hours):
                     pass
     return date_dir
 
-# 6. Parse VDLive XML files and aggregate peak hour data
+# 6. Parse VDLive XML files and aggregate BOTH hourly raw data & peak metrics
 def process_vd_data(date_dir, target_links):
-    aggregated = {lid: {'morning': {'pcu': 0, 'speed_vol': 0, 'vol': 0},
-                        'evening': {'pcu': 0, 'speed_vol': 0, 'vol': 0}}
-                  for lid in target_links}
-                  
+    hours_list = ['0700-0800', '0800-0900', '1700-1800', '1800-1900']
+    
+    # Store hourly raw data per LinkID
+    hourly_data = {h: {lid: {'S': 0, 'L': 0, 'T': 0, 'speed_vol': 0, 'vol': 0} for lid in target_links} for h in hours_list}
+    
     gz_files = glob.glob(os.path.join(date_dir, "*.xml.gz"))
     print(f"Processing {len(gz_files)} XML.GZ files...")
     
@@ -134,13 +135,17 @@ def process_vd_data(date_dir, target_links):
             continue
         hour = int(time_part[:2])
         
-        period = None
-        if 7 <= hour < 9:
-            period = 'morning'
-        elif 17 <= hour < 19:
-            period = 'evening'
+        h_key = None
+        if hour == 7:
+            h_key = '0700-0800'
+        elif hour == 8:
+            h_key = '0800-0900'
+        elif hour == 17:
+            h_key = '1700-1800'
+        elif hour == 18:
+            h_key = '1800-1900'
             
-        if not period:
+        if not h_key:
             continue
             
         try:
@@ -159,33 +164,48 @@ def process_vd_data(date_dir, target_links):
                                     vol = float(vehicle.findtext(f'{ns}Volume') or 0)
                                     veh_speed = float(vehicle.findtext(f'{ns}Speed') or speed)
                                     
-                                    pcu_factor = 1.0
-                                    if vtype == 'L':
-                                        pcu_factor = 1.5
+                                    if vtype == 'S':
+                                        hourly_data[h_key][link_id]['S'] += vol
+                                    elif vtype == 'L':
+                                        hourly_data[h_key][link_id]['L'] += vol
                                     elif vtype == 'T':
-                                        pcu_factor = 2.0
+                                        hourly_data[h_key][link_id]['T'] += vol
                                         
-                                    aggregated[link_id][period]['pcu'] += vol * pcu_factor
-                                    aggregated[link_id][period]['speed_vol'] += veh_speed * vol
-                                    aggregated[link_id][period]['vol'] += vol
+                                    hourly_data[h_key][link_id]['speed_vol'] += veh_speed * vol
+                                    hourly_data[h_key][link_id]['vol'] += vol
         except Exception as e:
             pass
             
-    final_metrics = {}
-    for lid, periods in aggregated.items():
-        final_metrics[lid] = {}
-        for p in ['morning', 'evening']:
-            tot_pcu = periods[p]['pcu'] / 2.0 # 2-hour period -> PCPH
-            tot_vol = periods[p]['vol']
-            avg_speed = (periods[p]['speed_vol'] / tot_vol) if tot_vol > 0 else 0
-            final_metrics[lid][p] = {
-                'pcu': tot_pcu,
-                'speed': avg_speed
-            }
-            
-    return final_metrics
+    # Calculate peak 2-hour averages for analysis sheets
+    final_peak_metrics = {lid: {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}} for lid in target_links}
+    
+    for lid in target_links:
+        # Morning peak: 0700-0800 + 0800-0900 (2 hours total)
+        m_s = hourly_data['0700-0800'][lid]['S'] + hourly_data['0800-0900'][lid]['S']
+        m_l = hourly_data['0700-0800'][lid]['L'] + hourly_data['0800-0900'][lid]['L']
+        m_t = hourly_data['0700-0800'][lid]['T'] + hourly_data['0800-0900'][lid]['T']
+        m_sv = hourly_data['0700-0800'][lid]['speed_vol'] + hourly_data['0800-0900'][lid]['speed_vol']
+        m_v = hourly_data['0700-0800'][lid]['vol'] + hourly_data['0800-0900'][lid]['vol']
+        
+        m_pcu_ph = (m_s * 1.0 + m_l * 1.5 + m_t * 2.0) / 2.0
+        m_avg_spd = (m_sv / m_v) if m_v > 0 else 0
+        
+        # Evening peak: 1700-1800 + 1800-1900 (2 hours total)
+        e_s = hourly_data['1700-1800'][lid]['S'] + hourly_data['1800-1900'][lid]['S']
+        e_l = hourly_data['1700-1800'][lid]['L'] + hourly_data['1800-1900'][lid]['L']
+        e_t = hourly_data['1700-1800'][lid]['T'] + hourly_data['1800-1900'][lid]['T']
+        e_sv = hourly_data['1700-1800'][lid]['speed_vol'] + hourly_data['1800-1900'][lid]['speed_vol']
+        e_v = hourly_data['1700-1800'][lid]['vol'] + hourly_data['1800-1900'][lid]['vol']
+        
+        e_pcu_ph = (e_s * 1.0 + e_l * 1.5 + e_t * 2.0) / 2.0
+        e_avg_spd = (e_sv / e_v) if e_v > 0 else 0
+        
+        final_peak_metrics[lid]['morning'] = {'pcu': m_pcu_ph, 'speed': m_avg_spd}
+        final_peak_metrics[lid]['evening'] = {'pcu': e_pcu_ph, 'speed': e_avg_spd}
+        
+    return hourly_data, final_peak_metrics
 
-# 7. Metadata Lookup and Link Classification
+# 7. Metadata Lookup
 def load_link_metadata(vd_xml_path, target_links):
     tree = ET.parse(vd_xml_path)
     root = tree.getroot()
@@ -217,8 +237,8 @@ def load_link_metadata(vd_xml_path, target_links):
                 
     return metadata
 
-# 8. Generate Excel report with openpyxl matching OUTPUT表格範例.xlsx
-def build_excel_report(output_file, mainline_data, ramp_data):
+# 8. Generate Excel report with openpyxl (6 Sheets Total)
+def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta):
     wb = openpyxl.Workbook()
     wb.remove(wb.active) # remove default sheet
     
@@ -233,7 +253,49 @@ def build_excel_report(output_file, mainline_data, ramp_data):
     align_left = Alignment(horizontal='left', vertical='center')
     align_right = Alignment(horizontal='right', vertical='center')
     
-    # ------------------ Sheet 1: 國道主線 ------------------
+    # ------------------ Sheets 1-4: Raw Hourly Data ------------------
+    raw_headers = ['偵測器代碼 (VDID)', '路段代碼 (LinkID)', '小客車數量 (S)', '大客車數量 (L)', '聯結車數量 (T)', '總車輛數 (車)', '總當量 (PCU)', '加權速率 (KPH)']
+    
+    for h_name in ['0700-0800', '0800-0900', '1700-1800', '1800-1900']:
+        ws = wb.create_sheet(title=h_name)
+        ws.views.sheetView[0].showGridLines = True
+        
+        # Write Headers
+        for col_idx, h_text in enumerate(raw_headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=h_text)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = align_center
+            cell.border = border_thin
+            
+        row_idx = 2
+        for lid in target_links:
+            vd_info = meta.get(lid, {})
+            vd_id = vd_info.get('vd_id', '')
+            
+            d = hourly_data[h_name][lid]
+            s_vol = d['S']
+            l_vol = d['L']
+            t_vol = d['T']
+            tot_veh = s_vol + l_vol + t_vol
+            tot_pcu = s_vol * 1.0 + l_vol * 1.5 + t_vol * 2.0
+            avg_spd = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
+            
+            ws.cell(row=row_idx, column=1, value=vd_id).alignment = align_center
+            ws.cell(row=row_idx, column=2, value=lid).alignment = align_center
+            ws.cell(row=row_idx, column=3, value=s_vol).number_format = '#,##0'
+            ws.cell(row=row_idx, column=4, value=l_vol).number_format = '#,##0'
+            ws.cell(row=row_idx, column=5, value=t_vol).number_format = '#,##0'
+            ws.cell(row=row_idx, column=6, value=tot_veh).number_format = '#,##0'
+            ws.cell(row=row_idx, column=7, value=tot_pcu).number_format = '#,##0.0'
+            ws.cell(row=row_idx, column=8, value=avg_spd).number_format = '0.00'
+            
+            for c in range(1, 9):
+                ws.cell(row=row_idx, column=c).font = data_font
+                ws.cell(row=row_idx, column=c).border = border_thin
+            row_idx += 1
+            
+    # ------------------ Sheet 5: 國道主線 Analysis ------------------
     ws_main = wb.create_sheet(title='國道主線')
     ws_main.views.sheetView[0].showGridLines = True
     
@@ -290,7 +352,7 @@ def build_excel_report(output_file, mainline_data, ramp_data):
             cell.border = border_thin
         row_idx += 1
         
-    # ------------------ Sheet 2: 國道匝道 ------------------
+    # ------------------ Sheet 6: 國道匝道 Analysis ------------------
     ws_ramp = wb.create_sheet(title='國道匝道')
     ws_ramp.views.sheetView[0].showGridLines = True
     
@@ -352,7 +414,8 @@ def build_excel_report(output_file, mainline_data, ramp_data):
             cell.border = border_thin
         row_idx += 1
 
-    for ws in [ws_main, ws_ramp]:
+    # Auto-adjust column widths
+    for ws in wb.worksheets:
         for col in ws.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = get_column_letter(col[0].column)
@@ -371,7 +434,7 @@ def main(date_str='20260716'):
     print(f"Loaded {len(target_links)} target LinkIDs.")
     
     date_dir = download_vd_data(date_str, [7, 8, 17, 18])
-    metrics = process_vd_data(date_dir, target_links)
+    hourly_data, metrics = process_vd_data(date_dir, target_links)
     meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
     
     mainline_rows = []
@@ -456,7 +519,7 @@ def main(date_str='20260716'):
             })
 
     output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
-    build_excel_report(output_path, mainline_rows, ramp_rows)
+    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta)
     print("Execution completed successfully.")
 
 if __name__ == '__main__':
