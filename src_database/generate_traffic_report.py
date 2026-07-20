@@ -117,7 +117,7 @@ def download_vd_data(date_str, hours):
                     pass
     return date_dir
 
-# 6. Parse VDLive XML files and aggregate BOTH hourly raw data & peak metrics
+# 6. Parse VDLive XML files, aggregate hourly raw data, peak metrics & extract live VDIDs
 def process_vd_data(date_dir, target_links, hours_config):
     hours_list, period_map = hours_config
     
@@ -127,6 +127,8 @@ def process_vd_data(date_dir, target_links, hours_config):
         'T': 0, 'T_speed_vol': 0,
         'speed_vol': 0, 'vol': 0
     } for lid in target_links} for h in hours_list}
+    
+    link_vdid_map = {}
     
     gz_files = glob.glob(os.path.join(date_dir, "*.xml.gz"))
     print(f"Processing {len(gz_files)} XML.GZ files...")
@@ -150,9 +152,13 @@ def process_vd_data(date_dir, target_links, hours_config):
                 root = tree.getroot()
                 
                 for vd_live in root.iter(f'{ns}VDLive'):
+                    vd_id = vd_live.findtext(f'{ns}VDID')
                     for dlink in vd_live.iter(f'{ns}LinkFlow'):
                         link_id = dlink.findtext(f'{ns}LinkID')
                         if link_id in target_links:
+                            if link_id not in link_vdid_map and vd_id:
+                                link_vdid_map[link_id] = vd_id
+                                
                             for lane in dlink.iter(f'{ns}Lane'):
                                 speed = float(lane.findtext(f'{ns}Speed') or 0)
                                 for vehicle in lane.iter(f'{ns}Vehicle'):
@@ -204,7 +210,7 @@ def process_vd_data(date_dir, target_links, hours_config):
         final_peak_metrics[lid]['morning'] = {'pcu': m_pcu_ph, 'speed': m_avg_spd}
         final_peak_metrics[lid]['evening'] = {'pcu': e_pcu_ph, 'speed': e_avg_spd}
         
-    return hourly_data, final_peak_metrics
+    return hourly_data, final_peak_metrics, link_vdid_map
 
 # 7. Metadata Lookup
 def load_link_metadata(vd_xml_path, target_links):
@@ -239,12 +245,7 @@ def load_link_metadata(vd_xml_path, target_links):
     return metadata
 
 # 8. Generate Excel report with openpyxl in exact requested sheet order & number formatting rules:
-# Capacity: Integer (#,##0)
-# Speed Limit: Integer (0)
-# Traffic Volume: Integer (#,##0)
-# V/C: 2 decimal places (0.00)
-# Speed: 1 decimal place (0.0)
-def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list):
+def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list, link_vdid_map):
     wb = openpyxl.Workbook()
     
     header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
@@ -401,7 +402,8 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
         row_idx = 2
         for lid in target_links:
             vd_info = meta.get(lid, {})
-            vd_id = vd_info.get('vd_id', '')
+            # Prefer live VDID from XML stream, fallback to vd_point_list.xml
+            vd_id = link_vdid_map.get(lid) or vd_info.get('vd_id', '')
             
             d = hourly_data[h_name][lid]
             s_vol = round(d['S'])
@@ -469,7 +471,7 @@ def main(date_str='20260716'):
     print(f"Loaded {len(target_links)} target LinkIDs.")
     
     date_dir = download_vd_data(date_str, download_hours)
-    hourly_data, metrics = process_vd_data(date_dir, target_links, (hours_list, period_map))
+    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map))
     meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
     
     mainline_rows = []
@@ -554,7 +556,7 @@ def main(date_str='20260716'):
             })
 
     output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
-    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list)
+    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map)
     print("Execution completed successfully.")
 
 if __name__ == '__main__':
