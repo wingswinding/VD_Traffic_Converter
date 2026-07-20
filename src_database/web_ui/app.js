@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Global Raw Results Cache
   let rawAnalysisResults = null;
   let rawMetadataList = [];
+  let currentAnalyzingDate = '';
 
   // Elements
   const dateInput = document.getElementById('analysisDate');
@@ -65,7 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  dateInput.addEventListener('change', updateDayBadge);
+  dateInput.addEventListener('change', () => {
+    updateDayBadge();
+    const rawDate = dateInput.value.replace(/-/g, '');
+    loadLatestResults(rawDate);
+  });
   updateDayBadge();
 
   // 2. Time Mode Handler
@@ -100,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawDate = dateInput.value.replace(/-/g, '');
     const mode = timeModeSelect.value;
     const customHours = customHoursInput.value.trim();
+    currentAnalyzingDate = rawDate;
 
     runBtn.disabled = true;
     runBtn.textContent = '⏳ 分析執行中...';
@@ -145,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
           clearInterval(pollTimer);
           resetRunButton();
           if (data.status === 'completed') {
-            loadLatestResults();
+            loadLatestResults(currentAnalyzingDate);
             loadReports();
             loadLogs();
           }
@@ -161,10 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
     runBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> 🚀 開始執行轉檔分析`;
   }
 
-  // 5. Fetch Latest Excel Analysis Results
-  async function loadLatestResults() {
+  // 5. Fetch Excel Analysis Results for Selected or Latest Date
+  async function loadLatestResults(targetDate = '') {
     try {
-      const resp = await fetch('/api/latest_results');
+      const url = targetDate ? `/api/latest_results?date=${encodeURIComponent(targetDate)}` : '/api/latest_results';
+      const resp = await fetch(url);
       const data = await resp.json();
       if (!data || !data.data) return;
 
@@ -181,9 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
       statLatestReportLink.textContent = `${data.report_name} ⬇️`;
       statLatestReportLink.href = `/api/download?file=${encodeURIComponent(data.report_name)}`;
 
-      // Update Highway Filter Options
+      // Update Highway Filter Options (Removed 流域/)
       if (data.highways && data.highways.length > 0) {
-        filterHighway.innerHTML = '<option value="ALL">流域/國道選單 (全選)</option>';
+        filterHighway.innerHTML = '<option value="ALL">🛣️ 國道路線選單 (全選)</option>';
         data.highways.forEach(hw => {
           const opt = document.createElement('option');
           opt.value = hw;
@@ -497,5 +504,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadReports();
   loadLogs();
   loadReferences();
-  loadLatestResults();
+  const initialDate = dateInput.value.replace(/-/g, '');
+  loadLatestResults(initialDate);
 });

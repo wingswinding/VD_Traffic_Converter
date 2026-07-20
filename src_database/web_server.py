@@ -71,17 +71,26 @@ def run_analysis_thread(date_str, mode, custom_hours):
             current_run["message"] = "執行過程發生錯誤！"
             current_run["logs"].append("=== 執行失敗，請檢查 Log ===")
 
-def parse_latest_excel_results():
+def parse_latest_excel_results(requested_date=None):
     if not os.path.exists(OUTPUT_DIR):
         return None
-    files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), reverse=True)
-    if not files:
-        return None
-    latest_file = files[0]
-    filename = os.path.basename(latest_file)
+        
+    target_file = None
+    if requested_date:
+        candidate = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{requested_date}.xlsx")
+        if os.path.exists(candidate):
+            target_file = candidate
+            
+    if not target_file:
+        files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=os.path.getmtime, reverse=True)
+        if not files:
+            return None
+        target_file = files[0]
+
+    filename = os.path.basename(target_file)
     
     try:
-        wb = openpyxl.load_workbook(latest_file, data_only=True)
+        wb = openpyxl.load_workbook(target_file, data_only=True)
         results = []
         highways = set()
         
@@ -239,10 +248,11 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         if path == '/api/latest_results':
+            req_date = query.get('date', [''])[0]
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
-            res = parse_latest_excel_results()
+            res = parse_latest_excel_results(req_date)
             self.wfile.write(json.dumps(res or {}, ensure_ascii=False).encode('utf-8'))
         elif path == '/api/link_metadata':
             self.send_response(200)
@@ -271,7 +281,7 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             reports = []
             if os.path.exists(OUTPUT_DIR):
-                files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), reverse=True)
+                files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=os.path.getmtime, reverse=True)
                 for f in files:
                     reports.append({
                         "name": os.path.basename(f),
@@ -298,7 +308,7 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             logs = []
             if os.path.exists(LOGS_DIR):
-                files = sorted(glob.glob(os.path.join(LOGS_DIR, "*.log")), reverse=True)
+                files = sorted(glob.glob(os.path.join(LOGS_DIR, "*.log")), key=os.path.getmtime, reverse=True)
                 for f in files:
                     logs.append({
                         "name": os.path.basename(f),
