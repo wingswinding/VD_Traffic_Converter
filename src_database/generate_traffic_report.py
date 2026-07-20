@@ -14,9 +14,13 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET_LINKS_FILE = os.path.join(BASE_DIR, 'src_database', 'target_links.txt')
-VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'src_database', 'downloads')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
+
+# Search for vd_point_list.xml in reference_files or root
+VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'reference_files', 'vd_point_list.xml')
+if not os.path.exists(VD_POINT_LIST_FILE):
+    VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -214,6 +218,9 @@ def process_vd_data(date_dir, target_links, hours_config):
 
 # 7. Metadata Lookup
 def load_link_metadata(vd_xml_path, target_links):
+    if not os.path.exists(vd_xml_path):
+        return {}
+        
     tree = ET.parse(vd_xml_path)
     root = tree.getroot()
     ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
