@@ -2,6 +2,10 @@ import os
 import time
 import requests
 import datetime
+import urllib3
+
+# Disable insecure request warning for bypassing SSL verification
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def download_vd_files(date_str, start_time_str, end_time_str, download_dir='downloads'):
     """
@@ -53,15 +57,15 @@ def download_vd_files(date_str, start_time_str, end_time_str, download_dir='down
             
         print(f"[{idx+1}/{len(minutes_list)}] Downloading {filename}...")
         
-        # Polite delay to prevent rate limit blocks (40-second interval rule applies to bulk scraping,
-        # but for sequential time ranges we sleep briefly to be polite)
+        # Polite delay to prevent rate limit blocks
         if idx > 0 and skip_count < idx:
             time.sleep(0.2)
             
         retries = 3
         while retries > 0:
             try:
-                response = session.get(file_url, timeout=10)
+                # Bypassing SSL verification (verify=False) since Freeway Bureau's certificate verification fails
+                response = session.get(file_url, verify=False, timeout=10)
                 if response.status_code == 200:
                     with open(dest_path, 'wb') as f:
                         f.write(response.content)
@@ -94,5 +98,4 @@ def download_vd_files(date_str, start_time_str, end_time_str, download_dir='down
     print(f"Files saved in: {dest_dir}")
 
 if __name__ == '__main__':
-    # Default test run: Download 07:00 to 08:00 (61 files) for 2026/07/19
     download_vd_files(date_str='20260719', start_time_str='07:00', end_time_str='08:00')
