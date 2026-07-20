@@ -20,7 +20,6 @@ OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 BACKUP_DIR = os.path.join(BASE_DIR, 'backup')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 
-# Search for vd_point_list.xml in reference_files or root
 VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'reference_files', 'vd_point_list.xml')
 if not os.path.exists(VD_POINT_LIST_FILE):
     VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
@@ -44,7 +43,10 @@ class DualLogger:
         self.terminal.flush()
         self.log.flush()
 
-# 0. Backup Mechanism Helper
+def report_progress(percent, msg):
+    print(f"PROGRESS: {percent}% | {msg}")
+    sys.stdout.flush()
+
 def backup_file_if_exists(file_path):
     if os.path.exists(file_path):
         filename = os.path.basename(file_path)
@@ -57,7 +59,6 @@ def backup_file_if_exists(file_path):
         return backup_path
     return None
 
-# 1. Table 4.7 Speed Limit -> Free Speed Vf mapping
 def get_free_speed(speed_limit):
     if speed_limit >= 110:
         return 115
@@ -68,7 +69,6 @@ def get_free_speed(speed_limit):
     else:
         return 90
 
-# 2. Mainline Capacity Lookup (based on Vf, lanes, open_shoulder)
 def get_mainline_capacity(speed_limit, lanes, open_shoulder):
     vf = get_free_speed(speed_limit)
     has_shoulder = (str(open_shoulder).upper() == 'Y')
@@ -83,24 +83,22 @@ def get_mainline_capacity(speed_limit, lanes, open_shoulder):
             qmax = 2050 if vf == 115 else (2000 if vf == 110 else (1950 if vf == 105 else 1900))
         else:
             qmax = 1850
-    else: # With open shoulder
-        if lanes == 3: # 3 lanes + shoulder = 4 effective
+    else:
+        if lanes == 3:
             qmax = 1760 if vf == 115 else (1725 if vf == 110 else (1690 if vf == 105 else 1650))
-        elif lanes == 2: # 2 lanes + shoulder = 3 effective
+        elif lanes == 2:
             qmax = 1730 if vf == 115 else (1700 if vf == 110 else (1670 if vf == 105 else 1630))
         else:
             qmax = 1690
             
     return qmax * effective_lanes
 
-# 3. Ramp Capacity Lookup (Planning Phase - Table 5.8 & 6.8)
 def get_ramp_capacity(ramp_type, lanes):
     if '出口' in ramp_type or 'OFF' in ramp_type.upper() or 'EXIT' in ramp_type.upper():
         return 3800 if lanes >= 2 else 1900
-    else: # 進口 On-ramp
+    else:
         return 3000 if lanes >= 2 else 1800
 
-# 4. Two-character LOS Calculation
 def calculate_los(vc_ratio, speed, speed_limit):
     if vc_ratio <= 0.25:
         letter = 'A'
@@ -131,10 +129,12 @@ def calculate_los(vc_ratio, speed, speed_limit):
         
     return f"{letter}{num}"
 
-# 5. Fetch VDLive XML data for specified date & hours
 def download_vd_data(date_str, hours):
     date_dir = os.path.join(DOWNLOAD_DIR, date_str)
     os.makedirs(date_dir, exist_ok=True)
+    
+    total_files = len(hours) * 60
+    downloaded = 0
     
     for h in hours:
         for m in range(0, 60):
@@ -151,9 +151,14 @@ def download_vd_data(date_str, hours):
                             f.write(resp.content)
                 except Exception as e:
                     pass
+            
+            downloaded += 1
+            if downloaded % 20 == 0 or downloaded == total_files:
+                prog_pct = 10 + int((downloaded / total_files) * 35) # 10% to 45%
+                report_progress(prog_pct, f"Downloading XML files ({downloaded}/{total_files})...")
+                
     return date_dir
 
-# 6. Parse VDLive XML files, aggregate hourly raw data, peak metrics & extract live VDIDs
 def process_vd_data(date_dir, target_links, hours_config):
     hours_list, period_map = hours_config
     
@@ -167,10 +172,13 @@ def process_vd_data(date_dir, target_links, hours_config):
     link_vdid_map = {}
     
     gz_files = glob.glob(os.path.join(date_dir, "*.xml.gz"))
-    print(f"Processing {len(gz_files)} XML.GZ files...")
+    total_gz = len(gz_files)
+    print(f"Processing {total_gz} XML.GZ files...")
+    report_progress(50, f"Parsing {total_gz} XML data files...")
     
     ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
     
+    proc_count = 0
     for gz_file in gz_files:
         basename = os.path.basename(gz_file)
         time_part = basename.replace("VDLive_", "").replace(".xml.gz", "")
@@ -214,16 +222,22 @@ def process_vd_data(date_dir, target_links, hours_config):
                                         
                                     hourly_data[h_key][link_id]['speed_vol'] += veh_speed * vol
                                     hourly_data[h_key][link_id]['vol'] += vol
-        except Exception as e:
+        except Exception:
             pass
             
+        proc_count += 1
+        if proc_count % 30 == 0 or proc_count == total_gz:
+            prog_pct = 50 + int((proc_count / max(total_gz, 1)) * 30) # 50% to 80%
+            report_progress(prog_pct, f"Parsing XML records ({proc_count}/{total_gz})...")
+
     final_peak_metrics = {lid: {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}} for lid in target_links}
     
-    m_h1, m_h2 = hours_list[0], hours_list[1]
-    e_h1, e_h2 = hours_list[2], hours_list[3]
+    m_h1 = hours_list[0] if len(hours_list) > 0 else '0700-0800'
+    m_h2 = hours_list[1] if len(hours_list) > 1 else m_h1
+    e_h1 = hours_list[2] if len(hours_list) > 2 else m_h1
+    e_h2 = hours_list[3] if len(hours_list) > 3 else e_h1
     
     for lid in target_links:
-        # Morning peak (2 hours total)
         m_s = hourly_data[m_h1][lid]['S'] + hourly_data[m_h2][lid]['S']
         m_l = hourly_data[m_h1][lid]['L'] + hourly_data[m_h2][lid]['L']
         m_t = hourly_data[m_h1][lid]['T'] + hourly_data[m_h2][lid]['T']
@@ -233,7 +247,6 @@ def process_vd_data(date_dir, target_links, hours_config):
         m_pcu_ph = (m_s * 1.0 + m_l * 1.5 + m_t * 2.0) / 2.0
         m_avg_spd = (m_sv / m_v) if m_v > 0 else 0
         
-        # Evening peak (2 hours total)
         e_s = hourly_data[e_h1][lid]['S'] + hourly_data[e_h2][lid]['S']
         e_l = hourly_data[e_h1][lid]['L'] + hourly_data[e_h2][lid]['L']
         e_t = hourly_data[e_h1][lid]['T'] + hourly_data[e_h2][lid]['T']
@@ -248,7 +261,6 @@ def process_vd_data(date_dir, target_links, hours_config):
         
     return hourly_data, final_peak_metrics, link_vdid_map
 
-# 7. Metadata Lookup
 def load_link_metadata(vd_xml_path, target_links):
     if not os.path.exists(vd_xml_path):
         return {}
@@ -283,9 +295,8 @@ def load_link_metadata(vd_xml_path, target_links):
                 
     return metadata
 
-# 8. Generate Excel report with openpyxl in exact requested sheet order & number formatting rules:
 def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list, link_vdid_map):
-    # Perform backup if file already exists
+    report_progress(85, "Backing up existing files & formatting Excel sheets...")
     backup_file_if_exists(output_file)
     
     wb = openpyxl.Workbook()
@@ -299,7 +310,6 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
     data_font = Font(name='微軟正黑體', size=10)
     align_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
     align_left = Alignment(horizontal='left', vertical='center')
-    align_right = Alignment(horizontal='right', vertical='center')
     
     # ------------------ Sheet 1: 國道主線 Analysis ------------------
     ws_main = wb.active
@@ -421,7 +431,7 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
             cell.border = border_thin
         row_idx += 1
 
-    # ------------------ Sheets 3-6: Raw Hourly Data ------------------
+    # ------------------ Sheets 3+: Raw Hourly Data ------------------
     raw_headers = [
         '偵測器代碼 (VDID)', '路段代碼 (LinkID)', 
         '小客車數量 (S)', '小客車速率 (KPH)',
@@ -444,7 +454,6 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
         row_idx = 2
         for lid in target_links:
             vd_info = meta.get(lid, {})
-            # Prefer live VDID from XML stream, fallback to vd_point_list.xml
             vd_id = link_vdid_map.get(lid) or vd_info.get('vd_id', '')
             
             d = hourly_data[h_name][lid]
@@ -478,42 +487,54 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
                 ws.cell(row=row_idx, column=c).border = border_thin
             row_idx += 1
 
-    # Auto-adjust column widths for all sheets
     for ws in wb.worksheets:
         for col in ws.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = get_column_letter(col[0].column)
             ws.column_dimensions[col_letter].width = max(max_len + 4, 15)
             
+    report_progress(95, "Saving Excel workbook to disk...")
     wb.save(output_file)
     print(f"Report successfully saved to {output_file}")
+    report_progress(100, "Execution completed successfully!")
 
-# Main execution entry
-def main(date_str='20260716'):
-    # Setup dual logger
+def main(date_str='20260716', mode='peak', custom_hours_str=''):
     timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = f"run_{date_str}_{timestamp_log}.log"
     log_filepath = os.path.join(LOGS_DIR, log_filename)
     sys.stdout = DualLogger(log_filepath)
     
-    print(f"=== Starting Traffic Report Generation for Date: {date_str} ===")
+    report_progress(5, f"Starting Traffic Analysis for Date: {date_str} (Mode: {mode})")
     print(f"Runtime Log File: {log_filepath}")
     
-    # Determine Weekday vs Weekend Peak Hours
     dt = datetime.datetime.strptime(date_str, "%Y%m%d")
-    is_weekend = dt.weekday() in [5, 6] # Saturday=5, Sunday=6
+    is_weekend = dt.weekday() in [5, 6]
     
-    if is_weekend:
-        print("Date type: Weekend / Holiday (10-12 Morning Peak, 16-18 Evening Peak)")
-        hours_list = ['1000-1100', '1100-1200', '1600-1700', '1700-1800']
-        period_map = {10: '1000-1100', 11: '1100-1200', 16: '1600-1700', 17: '1700-1800'}
-        download_hours = [10, 11, 16, 17]
+    if mode == 'fullday':
+        print("Date type: Full Day (00:00 - 24:00, 24 Hours)")
+        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in range(24)]
+        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in range(24)}
+        download_hours = list(range(24))
+    elif mode == 'custom' and custom_hours_str:
+        # custom_hours_str e.g. "7,8,17,18"
+        chours = [int(x.strip()) for x in custom_hours_str.split(',') if x.strip().isdigit()]
+        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in chours]
+        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in chours}
+        download_hours = chours
+        print(f"Date type: Custom Hours ({chours})")
     else:
-        print("Date type: Weekday (07-09 Morning Peak, 17-19 Evening Peak)")
-        hours_list = ['0700-0800', '0800-0900', '1700-1800', '1800-1900']
-        period_map = {7: '0700-0800', 8: '0800-0900', 17: '1700-1800', 18: '1800-1900'}
-        download_hours = [7, 8, 17, 18]
+        if is_weekend:
+            print("Date type: Weekend / Holiday Peak (10-12 Morning, 16-18 Evening)")
+            hours_list = ['1000-1100', '1100-1200', '1600-1700', '1700-1800']
+            period_map = {10: '1000-1100', 11: '1100-1200', 16: '1600-1700', 17: '1700-1800'}
+            download_hours = [10, 11, 16, 17]
+        else:
+            print("Date type: Weekday Peak (07-09 Morning, 17-19 Evening)")
+            hours_list = ['0700-0800', '0800-0900', '1700-1800', '1800-1900']
+            period_map = {7: '0700-0800', 8: '0800-0900', 17: '1700-1800', 18: '1800-1900'}
+            download_hours = [7, 8, 17, 18]
         
+    report_progress(10, "Loading target link IDs configuration...")
     with open(TARGET_LINKS_FILE, 'r', encoding='utf-8') as f:
         target_links = [line.strip() for line in f if line.strip()]
         
@@ -606,8 +627,9 @@ def main(date_str='20260716'):
 
     output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
     build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map)
-    print("Execution completed successfully.")
 
 if __name__ == '__main__':
     date_input = sys.argv[1] if len(sys.argv) > 1 else '20260716'
-    main(date_input)
+    mode_input = sys.argv[2] if len(sys.argv) > 2 else 'peak'
+    custom_hours_input = sys.argv[3] if len(sys.argv) > 3 else ''
+    main(date_input, mode_input, custom_hours_input)

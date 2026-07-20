@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VD 交通量轉換與服務水準分析系統</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>VD 交通量與服務水準 (LOS) 自動化分析系統</h1>
+          <p class="subtitle">Highway Level of Service & Traffic Volume Converter V4.5</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-badge" id="systemStatusBadge">
+          <span class="status-dot"></span> 系統服務就緒
+        </span>
+      </div>
+    </header>
+
+    <!-- Top Control Bar -->
+    <section class="control-card">
+      <div class="control-grid">
+        <!-- Date Selector -->
+        <div class="control-group">
+          <label for="analysisDate">📅 分析日期</label>
+          <div class="input-with-badge">
+            <input type="date" id="analysisDate" value="2026-07-16">
+            <span class="day-badge" id="dayTypeBadge">平常日</span>
+          </div>
+        </div>
+
+        <!-- Hours Mode Selector -->
+        <div class="control-group">
+          <label for="timeMode">⏰ 分析時段模式</label>
+          <select id="timeMode">
+            <option value="peak">🌅 預設晨昏峰 (晨峰+昏峰共 4 小時)</option>
+            <option value="fullday">☀️ 全日分析 (00:00 - 24:00 共 24 小時)</option>
+            <option value="custom">🛠️ 使用者自訂小時時段</option>
+          </select>
+        </div>
+
+        <!-- Custom Hours Input (Hidden by default) -->
+        <div class="control-group hidden" id="customHoursGroup">
+          <label for="customHoursInput">🔢 自訂小時 (逗號分隔 0-23)</label>
+          <input type="text" id="customHoursInput" placeholder="例: 7, 8, 17, 18">
+        </div>
+
+        <!-- Action Button -->
+        <div class="control-action">
+          <button id="runBtn" class="btn btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            🚀 開始執行轉檔分析
+          </button>
+        </div>
+      </div>
+
+      <!-- Real-time Progress Bar Container -->
+      <div class="progress-container hidden" id="progressContainer">
+        <div class="progress-header">
+          <span class="progress-title" id="progressTitle">正在初始化分析任務...</span>
+          <span class="progress-percent" id="progressPercent">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Console Log Stream Accordion -->
+      <details class="console-details" id="consoleAccordion">
+        <summary class="console-summary">
+          <span>🖥️ 實時終端機日誌流 (Console Live Output)</span>
+          <span class="toggle-icon">▼</span>
+        </summary>
+        <pre class="console-terminal" id="terminalOutput">=== 等候任務執行 ===</pre>
+      </details>
+    </section>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="dashboard">📊 服務水準視覺化看板</button>
+      <button class="tab-btn" data-tab="links">⚙️ 分析路段管理 (Target Links)</button>
+      <button class="tab-btn" data-tab="reports">📂 報表清單與歷程 Log</button>
+      <button class="tab-btn" data-tab="references">📖 參考資料規範庫</button>
+    </nav>
+
+    <!-- Tab 1: Dashboard Panel -->
+    <main class="tab-content active" id="tab-dashboard">
+      <div class="dashboard-summary">
+        <div class="metric-card">
+          <div class="metric-title">分析對象路段</div>
+          <div class="metric-value" id="statTotalLinks">24 筆</div>
+          <div class="metric-sub">主線 22 筆 | 匝道 2 筆</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">國道2號 主線最高 V/C</div>
+          <div class="metric-value color-warning" id="statMaxVC">0.96</div>
+          <div class="metric-sub" id="statMaxVCSeg">機場系統-南桃園</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">雙碼服務水準最差評級</div>
+          <div class="metric-value color-danger" id="statWorstLOS">E1</div>
+          <div class="metric-sub">尖峰時段容量飽和警告</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">最近生成報表</div>
+          <div class="metric-value text-sm" id="statLatestReport">VD_traffic_report_20260716.xlsx</div>
+          <div class="metric-sub">最新產出版本</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>📈 主線路段 晨昏峰 V/C 容量比值對比圖</h3>
+          <div id="vcChart" class="chart-box"></div>
+        </div>
+        <div class="chart-card">
+          <h3>🚗 主線路段 晨昏峰 平均旅行車速 (KPH)</h3>
+          <div id="speedChart" class="chart-box"></div>
+        </div>
+      </div>
+
+      <div class="los-card-section">
+        <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>路段名稱/範圍</th>
+                <th>方向</th>
+                <th>容量 (PCPH)</th>
+                <th>速限 (KPH)</th>
+                <th>晨峰當量</th>
+                <th>晨峰 V/C</th>
+                <th>晨峰速率</th>
+                <th>晨峰 LOS</th>
+                <th>昏峰當量</th>
+                <th>昏峰 V/C</th>
+                <th>昏峰速率</th>
+                <th>昏峰 LOS</th>
+              </tr>
+            </thead>
+            <tbody id="losTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- Tab 2: Target Links Management -->
+    <section class="tab-content" id="tab-links">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>分析目標路段設定檔 (target_links.txt)</h2>
+            <p>請在此自由輸入或貼上要分析過濾的高公局 14 碼 LinkID（每行一筆）。</p>
+          </div>
+          <button id="saveLinksBtn" class="btn btn-success">💾 儲存路段變更</button>
+        </div>
+        <textarea id="linksTextarea" rows="18" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
+      </div>
+    </section>
+
+    <!-- Tab 3: Reports & Logs -->
+    <section class="tab-content" id="tab-reports">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <h2>📊 已導出之 Excel 報表庫</h2>
+            <button id="refreshReportsBtn" class="btn btn-sm btn-secondary">🔄 重新整理</button>
+          </div>
+          <ul class="file-list" id="reportsList">
+            <!-- Dynamically populated -->
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>📜 歷史執行紀錄 Log</h2>
+            <button id="refreshLogsBtn" class="btn btn-sm btn-secondary">🔄 重新整理</button>
+          </div>
+          <ul class="file-list" id="logsList">
+            <!-- Dynamically populated -->
+          </ul>
+        </div>
+      </div>
+      <div class="card margin-top">
+        <h3 id="logViewerTitle">檢視 Log 內容</h3>
+        <pre class="log-viewer" id="logViewerContent">請點擊右上方歷史 Log 紀錄以檢視完整細節...</pre>
+      </div>
+    </section>
+
+    <!-- Tab 4: Reference Files -->
+    <section class="tab-content" id="tab-references">
+      <div class="card">
+        <div class="card-header">
+          <h2>📖 參考資料與容量規範文檔庫 (reference_files/)</h2>
+        </div>
+        <ul class="reference-grid" id="referenceGrid">
+          <!-- Dynamically populated -->
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
