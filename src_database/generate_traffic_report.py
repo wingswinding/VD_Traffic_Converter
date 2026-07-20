@@ -125,6 +125,8 @@ def process_vd_data(date_dir, target_links):
     gz_files = glob.glob(os.path.join(date_dir, "*.xml.gz"))
     print(f"Processing {len(gz_files)} XML.GZ files...")
     
+    ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
+    
     for gz_file in gz_files:
         basename = os.path.basename(gz_file)
         time_part = basename.replace("VDLive_", "").replace(".xml.gz", "")
@@ -146,15 +148,16 @@ def process_vd_data(date_dir, target_links):
                 tree = ET.parse(f)
                 root = tree.getroot()
                 
-                for vd_live in root.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}VDLive'):
-                    for dlink in vd_live.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}LinkFlow'):
-                        link_id = dlink.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}LinkID')
+                for vd_live in root.iter(f'{ns}VDLive'):
+                    for dlink in vd_live.iter(f'{ns}LinkFlow'):
+                        link_id = dlink.findtext(f'{ns}LinkID')
                         if link_id in target_links:
-                            for lane in dlink.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}LaneFlow'):
-                                speed = float(lane.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}Speed') or 0)
-                                for vehicle in lane.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}VehicleFlow'):
-                                    vtype = vehicle.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}VehicleType')
-                                    vol = float(vehicle.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}Volume') or 0)
+                            for lane in dlink.iter(f'{ns}Lane'):
+                                speed = float(lane.findtext(f'{ns}Speed') or 0)
+                                for vehicle in lane.iter(f'{ns}Vehicle'):
+                                    vtype = vehicle.findtext(f'{ns}VehicleType')
+                                    vol = float(vehicle.findtext(f'{ns}Volume') or 0)
+                                    veh_speed = float(vehicle.findtext(f'{ns}Speed') or speed)
                                     
                                     pcu_factor = 1.0
                                     if vtype == 'L':
@@ -163,7 +166,7 @@ def process_vd_data(date_dir, target_links):
                                         pcu_factor = 2.0
                                         
                                     aggregated[link_id][period]['pcu'] += vol * pcu_factor
-                                    aggregated[link_id][period]['speed_vol'] += speed * vol
+                                    aggregated[link_id][period]['speed_vol'] += veh_speed * vol
                                     aggregated[link_id][period]['vol'] += vol
         except Exception as e:
             pass
@@ -172,7 +175,7 @@ def process_vd_data(date_dir, target_links):
     for lid, periods in aggregated.items():
         final_metrics[lid] = {}
         for p in ['morning', 'evening']:
-            tot_pcu = periods[p]['pcu'] / 2.0 # PCPH
+            tot_pcu = periods[p]['pcu'] / 2.0 # 2-hour period -> PCPH
             tot_vol = periods[p]['vol']
             avg_speed = (periods[p]['speed_vol'] / tot_vol) if tot_vol > 0 else 0
             final_metrics[lid][p] = {
@@ -186,16 +189,17 @@ def process_vd_data(date_dir, target_links):
 def load_link_metadata(vd_xml_path, target_links):
     tree = ET.parse(vd_xml_path)
     root = tree.getroot()
+    ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
     
     metadata = {}
-    for vd in root.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}VD'):
-        vd_id = vd.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}VDID')
-        road_name = vd.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}RoadName') or '國道2號'
+    for vd in root.iter(f'{ns}VD'):
+        vd_id = vd.findtext(f'{ns}VDID')
+        road_name = vd.findtext(f'{ns}RoadName') or '國道2號'
         
-        for dlink in vd.iter('{http://traffic.transportdata.tw/standard/traffic/schema/}DetectionLink'):
-            link_id = dlink.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}LinkID')
-            road_dir = dlink.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}RoadDirection')
-            lane_num = int(dlink.findtext('{http://traffic.transportdata.tw/standard/traffic/schema/}LaneNum') or 3)
+        for dlink in vd.iter(f'{ns}DetectionLink'):
+            link_id = dlink.findtext(f'{ns}LinkID')
+            road_dir = dlink.findtext(f'{ns}RoadDirection')
+            lane_num = int(dlink.findtext(f'{ns}LaneNum') or 3)
             
             if link_id in target_links:
                 feature_code = link_id[6] if len(link_id) >= 7 else '0'
