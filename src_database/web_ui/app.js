@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update Highway Filter Options
       if (data.highways && data.highways.length > 0) {
-        filterHighway.innerHTML = '<option value="ALL">🛣️ 全國道路線 (全選)</option>';
+        filterHighway.innerHTML = '<option value="ALL">流域/國道選單 (全選)</option>';
         data.highways.forEach(hw => {
           const opt = document.createElement('option');
           opt.value = hw;
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const losClassE = r.e_los.startsWith('A') || r.e_los.startsWith('B') ? 'los-A' : (r.e_los.startsWith('C') || r.e_los.startsWith('D') ? 'los-C' : 'los-E');
 
       tr.innerHTML = `
-        <td><span class="day-badge">${idx + 1} (${r.type})</span></td>
+        <td><span class="type-badge">${idx + 1} (${r.type})</span></td>
         <td style="text-align:left; font-weight:600;">${r.road_name} ${r.segment}</td>
         <td>${r.direction}</td>
         <td>${Math.round(r.capacity).toLocaleString()}</td>
@@ -372,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td style="font-family:var(--font-mono);">${m.vd_id}</td>
           <td>${m.road_name}</td>
           <td>${m.direction}</td>
-          <td><span class="day-badge">${m.type}</span></td>
+          <td><span class="type-badge">${m.type}</span></td>
           <td>${m.lanes} 車道</td>
         `;
         linksMetadataBody.appendChild(tr);

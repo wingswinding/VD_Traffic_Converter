@@ -164,6 +164,7 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
 }
 
+/* Position Absolute ONLY for Date Badge */
 .day-badge {
   position: absolute;
   right: 12px;
@@ -173,6 +174,20 @@ input:focus, select:focus, textarea:focus {
   color: var(--primary);
   font-size: 0.75rem;
   font-weight: 600;
+  pointer-events: none;
+}
+
+/* Relative Inline Badge for Tables */
+.type-badge {
+  display: inline-block;
+  position: relative;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .btn {
@@ -476,7 +491,6 @@ input:focus, select:focus, textarea:focus {
 /* Tab 2 Compact Metadata Table */
 .data-table-sm {
   width: 100%;
-  min-width: 680px; /* Guarantees all 7 columns render comfortably with horizontal scroll */
   border-collapse: collapse;
   font-size: 0.82rem;
 }
@@ -497,13 +511,13 @@ input:focus, select:focus, textarea:focus {
   font-weight: 700;
 }
 
-.col-num { width: 40px; }
-.col-linkid { width: 140px; }
-.col-vdid { width: 180px; }
-.col-road { width: 90px; }
-.col-dir { width: 70px; }
-.col-type { width: 70px; }
-.col-lanes { width: 75px; }
+.col-num { width: 45px; }
+.col-linkid { width: 145px; }
+.col-vdid { width: 195px; }
+.col-road { width: 85px; }
+.col-dir { width: 65px; }
+.col-type { width: 65px; }
+.col-lanes { width: 70px; }
 
 /* Tab 2 Header Stacked */
 .card-header-stacked {
@@ -532,7 +546,7 @@ input:focus, select:focus, textarea:focus {
 
 .grid-links-split {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 24px;
 }
 
