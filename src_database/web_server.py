@@ -6,6 +6,8 @@ import datetime
 import urllib.parse
 import subprocess
 import threading
+import xml.etree.ElementTree as ET
+import openpyxl
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,11 +16,14 @@ TARGET_LINKS_FILE = os.path.join(BASE_DIR, 'src_database', 'target_links.txt')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 REF_DIR = os.path.join(BASE_DIR, 'reference_files')
+VD_POINT_LIST_FILE = os.path.join(REF_DIR, 'vd_point_list.xml')
+if not os.path.exists(VD_POINT_LIST_FILE):
+    VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
 
 # Global State for Analysis Run
 state_lock = threading.Lock()
 current_run = {
-    "status": "idle", # idle, running, completed, error
+    "status": "idle",
     "progress": 0,
     "message": "系統已就緒",
     "logs": []
@@ -66,6 +71,164 @@ def run_analysis_thread(date_str, mode, custom_hours):
             current_run["message"] = "執行過程發生錯誤！"
             current_run["logs"].append("=== 執行失敗，請檢查 Log ===")
 
+def parse_latest_excel_results():
+    if not os.path.exists(OUTPUT_DIR):
+        return None
+    files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), reverse=True)
+    if not files:
+        return None
+    latest_file = files[0]
+    filename = os.path.basename(latest_file)
+    
+    try:
+        wb = openpyxl.load_workbook(latest_file, data_only=True)
+        results = []
+        highways = set()
+        
+        # 1. Sheet: 國道主線
+        if '國道主線' in wb.sheetnames:
+            ws = wb['國道主線']
+            for r in range(3, ws.max_row + 1):
+                road_name = str(ws.cell(row=r, column=1).value or '').strip()
+                segment = str(ws.cell(row=r, column=2).value or '').strip()
+                direction = str(ws.cell(row=r, column=3).value or '').strip()
+                cap = float(ws.cell(row=r, column=4).value or 0)
+                limit = float(ws.cell(row=r, column=5).value or 0)
+                
+                m_pcu = float(ws.cell(row=r, column=6).value or 0)
+                m_vc = float(ws.cell(row=r, column=7).value or 0)
+                m_spd = float(ws.cell(row=r, column=8).value or 0)
+                m_los = str(ws.cell(row=r, column=9).value or '').strip()
+                
+                e_pcu = float(ws.cell(row=r, column=10).value or 0)
+                e_vc = float(ws.cell(row=r, column=11).value or 0)
+                e_spd = float(ws.cell(row=r, column=12).value or 0)
+                e_los = str(ws.cell(row=r, column=13).value or '').strip()
+                
+                if road_name and segment:
+                    highways.add(road_name)
+                    results.append({
+                        "road_name": road_name,
+                        "segment": segment,
+                        "direction": direction,
+                        "type": "主線",
+                        "capacity": cap,
+                        "speed_limit": limit,
+                        "m_pcu": m_pcu, "m_vc": m_vc, "m_speed": m_spd, "m_los": m_los,
+                        "e_pcu": e_pcu, "e_vc": e_vc, "e_speed": e_spd, "e_los": e_los
+                    })
+                    
+        # 2. Sheet: 國道匝道
+        if '國道匝道' in wb.sheetnames:
+            ws = wb['國道匝道']
+            for r in range(3, ws.max_row + 1):
+                road_name = str(ws.cell(row=r, column=1).value or '').strip()
+                ic_name = str(ws.cell(row=r, column=2).value or '').strip()
+                direction = str(ws.cell(row=r, column=3).value or '').strip()
+                in_out = str(ws.cell(row=r, column=4).value or '').strip()
+                dest = str(ws.cell(row=r, column=5).value or '').strip()
+                cap = float(ws.cell(row=r, column=6).value or 0)
+                limit = float(ws.cell(row=r, column=7).value or 0)
+                
+                m_pcu = float(ws.cell(row=r, column=8).value or 0)
+                m_vc = float(ws.cell(row=r, column=9).value or 0)
+                m_spd = float(ws.cell(row=r, column=10).value or 0)
+                m_los = str(ws.cell(row=r, column=11).value or '').strip()
+                
+                e_pcu = float(ws.cell(row=r, column=12).value or 0)
+                e_vc = float(ws.cell(row=r, column=13).value or 0)
+                e_spd = float(ws.cell(row=r, column=14).value or 0)
+                e_los = str(ws.cell(row=r, column=15).value or '').strip()
+                
+                if road_name and ic_name:
+                    highways.add(road_name)
+                    results.append({
+                        "road_name": road_name,
+                        "segment": f"{ic_name} ({in_out}-{dest})",
+                        "direction": direction,
+                        "type": "匝道",
+                        "capacity": cap,
+                        "speed_limit": limit,
+                        "m_pcu": m_pcu, "m_vc": m_vc, "m_speed": m_spd, "m_los": m_los,
+                        "e_pcu": e_pcu, "e_vc": e_vc, "e_speed": e_spd, "e_los": e_los
+                    })
+                    
+        total_links = len(results)
+        mainline_count = len([x for x in results if x['type'] == '主線'])
+        ramp_count = len([x for x in results if x['type'] == '匝道'])
+        
+        max_vc_item = max(results, key=lambda x: max(x['m_vc'], x['e_vc'])) if results else None
+        max_vc = max(max_vc_item['m_vc'], max_vc_item['e_vc']) if max_vc_item else 0
+        max_vc_seg = f"{max_vc_item['segment']} ({max_vc_item['direction']})" if max_vc_item else ''
+        
+        worst_los_item = max(results, key=lambda x: max(x['m_los'], x['e_los'])) if results else None
+        worst_los = max(worst_los_item['m_los'], worst_los_item['e_los']) if worst_los_item else 'A1'
+        
+        return {
+            "report_name": filename,
+            "total_links": total_links,
+            "mainline_count": mainline_count,
+            "ramp_count": ramp_count,
+            "max_vc": round(max_vc, 2),
+            "max_vc_seg": max_vc_seg,
+            "worst_los": worst_los,
+            "highways": sorted(list(highways)),
+            "data": results
+        }
+    except Exception as e:
+        print(f"Error parsing excel results: {e}")
+        return None
+
+def get_link_metadata_details():
+    links = []
+    if os.path.exists(TARGET_LINKS_FILE):
+        with open(TARGET_LINKS_FILE, 'r', encoding='utf-8') as f:
+            links = [line.strip() for line in f if line.strip()]
+            
+    xml_map = {}
+    if os.path.exists(VD_POINT_LIST_FILE):
+        try:
+            tree = ET.parse(VD_POINT_LIST_FILE)
+            root = tree.getroot()
+            ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
+            for vd in root.iter(f'{ns}VD'):
+                vd_id = vd.findtext(f'{ns}VDID')
+                road_name = vd.findtext(f'{ns}RoadName') or '國道2號'
+                for dlink in vd.iter(f'{ns}DetectionLink'):
+                    link_id = dlink.findtext(f'{ns}LinkID')
+                    road_dir = dlink.findtext(f'{ns}RoadDirection')
+                    lane_num = dlink.findtext(f'{ns}LaneNum') or '3'
+                    if link_id:
+                        dir_text = '往東' if road_dir == 'E' else ('往西' if road_dir == 'W' else ('北上' if road_dir == 'N' else '南下'))
+                        xml_map[link_id] = {
+                            "vd_id": vd_id,
+                            "road_name": road_name,
+                            "direction": dir_text,
+                            "lanes": lane_num
+                        }
+        except Exception:
+            pass
+            
+    details = []
+    for lid in links:
+        feature_code = lid[6] if len(lid) >= 7 else '0'
+        type_text = '主線' if feature_code == '0' else '匝道'
+        info = xml_map.get(lid, {
+            "vd_id": "VD-N2-E-LOOP" if lid.startswith("00002010") else ("VD-N2-W-LOOP" if lid.startswith("00002011") else "靜態資料庫未收錄"),
+            "road_name": "國道2號",
+            "direction": "往東" if lid[7] == '0' else "往西",
+            "lanes": "3"
+        })
+        details.append({
+            "link_id": lid,
+            "vd_id": info["vd_id"],
+            "road_name": info["road_name"],
+            "direction": info["direction"],
+            "type": type_text,
+            "lanes": info["lanes"]
+        })
+    return details
+
 class VDRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_UI_DIR, **kwargs)
@@ -75,7 +238,19 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
-        if path == '/api/progress':
+        if path == '/api/latest_results':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            res = parse_latest_excel_results()
+            self.wfile.write(json.dumps(res or {}, ensure_ascii=False).encode('utf-8'))
+        elif path == '/api/link_metadata':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            details = get_link_metadata_details()
+            self.wfile.write(json.dumps({"metadata": details}, ensure_ascii=False).encode('utf-8'))
+        elif path == '/api/progress':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()

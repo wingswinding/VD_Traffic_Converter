@@ -45,7 +45,7 @@ body {
 }
 
 .app-container {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 
@@ -325,7 +325,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* Cards & Grid Layouts */
-.metric-card, .chart-card, .card {
+.metric-card, .chart-banner-card, .los-card-section, .card {
   background: var(--bg-card);
   backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
@@ -348,7 +348,7 @@ input:focus, select:focus, textarea:focus {
 
 .metric-value {
   font-family: var(--font-brand);
-  font-size: 2.2rem;
+  font-size: 2.1rem;
   font-weight: 800;
   line-height: 1.1;
   color: #fff;
@@ -360,39 +360,81 @@ input:focus, select:focus, textarea:focus {
   margin-top: 6px;
 }
 
-.color-warning { color: var(--warning); }
-.color-danger { color: var(--danger); }
-.text-sm { font-size: 1.1rem; }
+.download-link {
+  color: var(--primary);
+  text-decoration: underline;
+  transition: all 0.2s ease;
+}
 
-.chart-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+.download-link:hover {
+  color: #fff;
+  text-shadow: 0 0 10px var(--primary);
+}
+
+.chart-banner-card {
   margin-bottom: 24px;
 }
 
-.chart-card h3 {
-  font-size: 1rem;
-  font-weight: 700;
+.banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
+}
+
+.banner-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--text-main);
 }
 
-.chart-box {
-  width: 100%;
-  height: 320px;
+.chart-tip {
+  font-size: 0.8rem;
+  color: var(--primary);
+  background: rgba(0, 242, 254, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
-/* Table */
+.chart-box-banner {
+  width: 100%;
+  height: 380px;
+}
+
+/* Table Section & Filters */
+.section-filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.section-filter-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-controls select, .filter-controls input {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
 .table-responsive {
   overflow-x: auto;
-  margin-top: 16px;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
 }
 
 .data-table th, .data-table td {
@@ -405,14 +447,31 @@ input:focus, select:focus, textarea:focus {
   background: rgba(0, 242, 254, 0.05);
   color: var(--primary);
   font-weight: 700;
-
+  white-space: nowrap;
 }
 
 .data-table tr:hover {
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* LOS Badge Styling */
+.data-table-sm {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.data-table-sm th, .data-table-sm td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.data-table-sm th {
+  background: rgba(0, 242, 254, 0.05);
+  color: var(--primary);
+}
+
+/* LOS Badges */
 .los-badge {
   padding: 3px 8px;
   border-radius: 4px;
@@ -423,6 +482,21 @@ input:focus, select:focus, textarea:focus {
 .los-A, .los-B { background: rgba(16, 185, 129, 0.2); color: #34d399; }
 .los-C, .los-D { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 .los-E, .los-F { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+.grid-links-split {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+}
+
+.badge-count {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 
 .grid-2col {
   display: grid;
@@ -479,7 +553,6 @@ input:focus, select:focus, textarea:focus {
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   list-style: none;
-
 }
 
 .ref-card {
@@ -495,5 +568,9 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 6px;
 }
 
+.color-warning { color: var(--warning); }
+.color-danger { color: var(--danger); }
+.text-sm { font-size: 1rem; }
 .hidden { display: none !important; }
 .margin-top { margin-top: 24px; }
+.margin-bottom { margin-bottom: 24px; }

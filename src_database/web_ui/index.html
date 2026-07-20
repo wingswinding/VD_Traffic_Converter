@@ -93,7 +93,7 @@
     <!-- Main Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" data-tab="dashboard">📊 服務水準視覺化看板</button>
-      <button class="tab-btn" data-tab="links">⚙️ 分析路段管理 (Target Links)</button>
+      <button class="tab-btn" data-tab="links">⚙️ 分析路段管理與點位預覽</button>
       <button class="tab-btn" data-tab="reports">📂 報表清單與歷程 Log</button>
       <button class="tab-btn" data-tab="references">📖 參考資料規範庫</button>
     </nav>
@@ -102,53 +102,92 @@
     <main class="tab-content active" id="tab-dashboard">
       <div class="dashboard-summary">
         <div class="metric-card">
-          <div class="metric-title">分析對象路段</div>
+          <div class="metric-title">分析對象點位總數</div>
           <div class="metric-value" id="statTotalLinks">24 筆</div>
-          <div class="metric-sub">主線 22 筆 | 匝道 2 筆</div>
+          <div class="metric-sub" id="statSubLinks">主線 22 筆 | 匝道 2 筆</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title">國道2號 主線最高 V/C</div>
-          <div class="metric-value color-warning" id="statMaxVC">0.96</div>
-          <div class="metric-sub" id="statMaxVCSeg">機場系統-南桃園</div>
+          <div class="metric-title">最高 V/C 比值路段</div>
+          <div class="metric-value color-warning" id="statMaxVC">--</div>
+          <div class="metric-sub" id="statMaxVCSeg">載入中...</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title">雙碼服務水準最差評級</div>
-          <div class="metric-value color-danger" id="statWorstLOS">E1</div>
-          <div class="metric-sub">尖峰時段容量飽和警告</div>
+          <div class="metric-title">最差雙碼服務水準</div>
+          <div class="metric-value color-danger" id="statWorstLOS">--</div>
+          <div class="metric-sub">尖峰容量監控評級</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title">最近生成報表</div>
-          <div class="metric-value text-sm" id="statLatestReport">VD_traffic_report_20260716.xlsx</div>
-          <div class="metric-sub">最新產出版本</div>
+          <div class="metric-title">最近生成報表 (點擊下載)</div>
+          <div class="metric-value text-sm" id="statLatestReportContainer">
+            <a id="statLatestReportLink" class="download-link" href="#" download>讀取中... ⬇️</a>
+          </div>
+          <div class="metric-sub">點擊即可直接下載 Excel 檔</div>
         </div>
       </div>
 
-      <div class="chart-grid">
-        <div class="chart-card">
-          <h3>📈 主線路段 晨昏峰 V/C 容量比值對比圖</h3>
-          <div id="vcChart" class="chart-box"></div>
+      <!-- Full-Width Banner 1: V/C Chart -->
+      <div class="chart-banner-card margin-bottom">
+        <div class="banner-header">
+          <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
+          <span class="chart-tip">💡 可拖動下方 slider 滑塊或滾動滑鼠進行點位縮放</span>
         </div>
-        <div class="chart-card">
-          <h3>🚗 主線路段 晨昏峰 平均旅行車速 (KPH)</h3>
-          <div id="speedChart" class="chart-box"></div>
-        </div>
+        <div id="vcChart" class="chart-box-banner"></div>
       </div>
 
+      <!-- Full-Width Banner 2: Speed Chart -->
+      <div class="chart-banner-card margin-bottom">
+        <div class="banner-header">
+          <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
+          <span class="chart-tip">💡 虛線表示該路段法定最高速限</span>
+        </div>
+        <div id="speedChart" class="chart-box-banner"></div>
+      </div>
+
+      <!-- Full Table Section with Multi-Filter -->
       <div class="los-card-section">
-        <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
+        <div class="section-filter-header">
+          <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
+          
+          <div class="filter-controls">
+            <!-- Highway Filter -->
+            <select id="filterHighway">
+              <option value="ALL">🛣️ 全國道路線 (全選)</option>
+              <option value="國道2號">國道2號</option>
+            </select>
+
+            <!-- Type Filter -->
+            <select id="filterType">
+              <option value="ALL">📂 全路段型態 (主線+匝道)</option>
+              <option value="主線">主線 (22筆)</option>
+              <option value="匝道">匝道 (2筆)</option>
+            </select>
+
+            <!-- Direction Filter -->
+            <select id="filterDir">
+              <option value="ALL">🧭 全行車方向</option>
+              <option value="往東">往東 (E)</option>
+              <option value="往西">往西 (W)</option>
+            </select>
+
+            <!-- Search Box -->
+            <input type="text" id="filterKeyword" placeholder="🔍 關鍵字搜尋路段名稱..." style="width: 200px;">
+          </div>
+        </div>
+
         <div class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
-                <th>路段名稱/範圍</th>
+                <th>編號/分類</th>
+                <th>道路名稱 / 路段範圍</th>
                 <th>方向</th>
                 <th>容量 (PCPH)</th>
                 <th>速限 (KPH)</th>
-                <th>晨峰當量</th>
+                <th>晨峰流量</th>
                 <th>晨峰 V/C</th>
                 <th>晨峰速率</th>
                 <th>晨峰 LOS</th>
-                <th>昏峰當量</th>
+                <th>昏峰流量</th>
                 <th>昏峰 V/C</th>
                 <th>昏峰速率</th>
                 <th>昏峰 LOS</th>
@@ -162,17 +201,49 @@
       </div>
     </main>
 
-    <!-- Tab 2: Target Links Management -->
+    <!-- Tab 2: Target Links Management & Metadata Preview -->
     <section class="tab-content" id="tab-links">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>分析目標路段設定檔 (target_links.txt)</h2>
-            <p>請在此自由輸入或貼上要分析過濾的高公局 14 碼 LinkID（每行一筆）。</p>
+      <div class="grid-links-split">
+        <!-- Left: Text Editor -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>分析路段文字檔 (target_links.txt)</h2>
+              <p>每行輸入一筆 14 碼 LinkID。</p>
+            </div>
+            <button id="saveLinksBtn" class="btn btn-success">💾 儲存變更</button>
           </div>
-          <button id="saveLinksBtn" class="btn btn-success">💾 儲存路段變更</button>
+          <textarea id="linksTextarea" rows="22" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
         </div>
-        <textarea id="linksTextarea" rows="18" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
+
+        <!-- Right: Real-time Link Metadata Preview Table -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>實時點位與對照屬性預覽表</h2>
+              <p>與左側設定檔自動同步解析點位元數據。</p>
+            </div>
+            <span class="badge-count" id="linksCountBadge">共 24 筆</span>
+          </div>
+          <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+            <table class="data-table-sm">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>路段代碼 (LinkID)</th>
+                  <th>偵測器代碼 (VDID)</th>
+                  <th>道路名稱</th>
+                  <th>方向</th>
+                  <th>型態</th>
+                  <th>車道數</th>
+                </tr>
+              </thead>
+              <tbody id="linksMetadataBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 
