@@ -6,7 +6,7 @@
 
 ---
 
-## 專案目錄架構
+## 專案目錄與歷程 Log 位置
 
 ```text
 VD_Traffic_Converter/
@@ -24,6 +24,9 @@ VD_Traffic_Converter/
 │   ├── target_links.txt                  # 分析目標 LinkID 清單設定檔
 │   └── downloads/                        # 歷史 XML.GZ 自動下載快取庫
 │
+├── logs/                                 # 【程式執行歷程 Log】
+│   └── run_YYYYMMDD_HHMMSS.log           # 每次執行時之終端機控制台 Console Log 紀錄
+│
 ├── backup/                               # 【自動備份檔案庫】
 │   └── VD_traffic_report_YYYYMMDD_YYYYMMDD_HHMMSS.xlsx # 覆蓋舊檔前自動產生之時間戳備份
 │
@@ -36,6 +39,20 @@ VD_Traffic_Converter/
 
 ---
 
+## 歷程 Log 紀錄位置 (Log Locations)
+
+1. **程式執行歷程 Log (Program Execution Log)**：
+   * **位置**：`logs/run_YYYYMMDD_HHMMSS.log`
+   * **說明**：每次執行 `generate_traffic_report.py` 時，系統會在 `logs/` 資料夾自動建立含 timestamp 之文字紀錄檔，完整保留分析日期、下載檔案數、備份狀況與執行結果。
+
+2. **對話與AI開發歷程 Log (AI Assistant Trajectory Log)**：
+   * **位置**：`C:\Users\Owner\.gemini\antigravity\brain\5da4f6b9-54ae-48d5-bc02-be8a5a3438dd\.system_generated\logs\`
+   * **檔名**：
+     * `transcript.jsonl`：精簡對話與工具執行步驟紀錄。
+     * `transcript_full.jsonl`：完全未擷斷之完整溝通歷程。
+
+---
+
 ## 雙重備份機制 (Backup Mechanism)
 
 1. **版本控制備份 (Git Master)**：
@@ -44,7 +61,6 @@ VD_Traffic_Converter/
 2. **檔案覆蓋自動備份 (Automatic Timestamped Backup)**：
    * 當執行 `generate_traffic_report.py` 生成報表時，若 `output/` 目錄下已存在相同日期的舊報表檔，系統會**自動建立時間戳備份**，備份至 `backup/` 資料夾，檔名格式為：
      `VD_traffic_report_YYYYMMDD_YYYYMMDD_HHMMSS.xlsx`
-   * 確保原有產出數據永不因誤操作覆蓋而遺失。
 
 ---
 
@@ -95,4 +111,7 @@ VD_Traffic_Converter/
    python src_database/generate_traffic_report.py <YYYYMMDD>
    ```
    *(例如：`python src_database/generate_traffic_report.py 20260716`)*
-3. **取得結果與備份**：產出之 Excel 檔將儲存於 `output/VD_traffic_report_YYYYMMDD.xlsx`；如有舊檔將自動備份至 `backup/`。
+3. **取得結果與 Log**：
+   * Excel 報表儲存於 `output/VD_traffic_report_YYYYMMDD.xlsx`。
+   * 舊檔自動備份至 `backup/`。
+   * 執行過程 Console 控制台紀錄會自動存入 `logs/`。

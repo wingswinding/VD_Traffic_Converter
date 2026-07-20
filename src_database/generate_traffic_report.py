@@ -18,6 +18,7 @@ TARGET_LINKS_FILE = os.path.join(BASE_DIR, 'src_database', 'target_links.txt')
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'src_database', 'downloads')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
 BACKUP_DIR = os.path.join(BASE_DIR, 'backup')
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 
 # Search for vd_point_list.xml in reference_files or root
 VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'reference_files', 'vd_point_list.xml')
@@ -27,6 +28,21 @@ if not os.path.exists(VD_POINT_LIST_FILE):
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+class DualLogger:
+    def __init__(self, log_filepath):
+        self.terminal = sys.stdout
+        self.log = open(log_filepath, "w", encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
 
 # 0. Backup Mechanism Helper
 def backup_file_if_exists(file_path):
@@ -474,7 +490,14 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
 
 # Main execution entry
 def main(date_str='20260716'):
+    # Setup dual logger
+    timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"run_{date_str}_{timestamp_log}.log"
+    log_filepath = os.path.join(LOGS_DIR, log_filename)
+    sys.stdout = DualLogger(log_filepath)
+    
     print(f"=== Starting Traffic Report Generation for Date: {date_str} ===")
+    print(f"Runtime Log File: {log_filepath}")
     
     # Determine Weekday vs Weekend Peak Hours
     dt = datetime.datetime.strptime(date_str, "%Y%m%d")
