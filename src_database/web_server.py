@@ -19,6 +19,35 @@ REF_DIR = os.path.join(BASE_DIR, 'reference_files')
 VD_POINT_LIST_FILE = os.path.join(REF_DIR, 'vd_point_list.xml')
 if not os.path.exists(VD_POINT_LIST_FILE):
     VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
+IC_CSV_FILE = os.path.join(REF_DIR, 'Freeway_Interchanges_Full.csv')
+
+# ── 養護分局分區定義（整條路線 → 分區）──────────────────────────────────────────
+REGION_MAP = {
+    '北區': ['國道1號(含汐五及五楊高架)', '國道2號(含國2甲)', '國道3號(含國3甲)', '國道5號(蔣渭水高速公路)'],
+    '中區': ['國道4號(台中環線)', '國道6號'],
+    '南區': ['國道8號(台南支線)', '國道10號(高雄支線)'],
+}
+# XML RoadName → CSV 路線名稱 (for IC lookup)
+XML_TO_CSV_ROAD = {
+    '國道1號': '國道1號(含汐五及五楊高架)',
+    '國道2號': '國道2號(含國2甲)',
+    '國道3號': '國道3號(含國3甲)',
+    '國道3甲': '國道3號(含國3甲)',
+    '國道4號': '國道4號(台中環線)',
+    '國道5號': '國道5號(蔣渭水高速公路)',
+    '國道6號': '國道6號',
+    '國道8號': '國道8號(台南支線)',
+    '國道10號': '國道10號(高雄支線)',
+    '快速公路62號': '快速公路62號',
+    '快速公路64號': '快速公路64號',
+    '快速公路72號': '快速公路72號',
+    '快速公路74號': '快速公路74號',
+    '快速公路76號': '快速公路76號',
+    '快速公路78號': '快速公路78號',
+    '快速公路82號': '快速公路82號',
+    '快速公路84號': '快速公路84號',
+    '快速公路86號': '快速公路86號',
+}
 
 # Global State for Analysis Run
 state_lock = threading.Lock()
@@ -188,6 +217,156 @@ def parse_latest_excel_results(requested_date=None):
         print(f"Error parsing excel results: {e}")
         return None
 
+import csv
+import re
+
+_ic_cache = None
+_vd_xml_cache = None
+
+def load_ic_data():
+    """Load IC interchange data from CSV, keyed by (csv_road_name, ic_name) -> km float."""
+    global _ic_cache
+    if _ic_cache is not None:
+        return _ic_cache
+    _ic_cache = {}  # csv_road -> list of {name, km}
+    if not os.path.exists(IC_CSV_FILE):
+        return _ic_cache
+    try:
+        with open(IC_CSV_FILE, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                road = row.get('路線', '').strip()
+                name = row.get('欄位1', '').strip()
+                km_raw = row.get('欄位2', '').strip()
+                # Skip header rows, service areas, aggregate lines, and sub-exit rows
+                if not road or not name or name in ('設施名稱', '交流道數量合計'):
+                    continue
+                if name in ('A', 'B', 'C', 'D') or '次出口' in name or '休息站' in name or '服務區' in name:
+                    continue
+                # Parse km: support '0', '13', '高架13', etc.
+                km_str = re.sub(r'[^0-9.]', '', km_raw)
+                if not km_str:
+                    continue
+                try:
+                    km = float(km_str)
+                except ValueError:
+                    continue
+                if road not in _ic_cache:
+                    _ic_cache[road] = []
+                _ic_cache[road].append({'name': name, 'km': km})
+    except Exception as e:
+        print(f'IC CSV load error: {e}')
+    return _ic_cache
+
+
+def load_vd_xml_cache():
+    """Parse vd_point_list.xml once and cache all links."""
+    global _vd_xml_cache
+    if _vd_xml_cache is not None:
+        return _vd_xml_cache
+    _vd_xml_cache = {}  # link_id -> {vd_id, road_name, direction, km, lanes, type}
+    if not os.path.exists(VD_POINT_LIST_FILE):
+        return _vd_xml_cache
+    try:
+        tree = ET.parse(VD_POINT_LIST_FILE)
+        root = tree.getroot()
+        ns = '{http://traffic.transportdata.tw/standard/traffic/schema/}'
+        dir_text_map = {'E': '往東', 'W': '往西', 'N': '北上', 'S': '南下'}
+        for vd in root.iter(f'{ns}VD'):
+            vd_id = vd.findtext(f'{ns}VDID') or ''
+            road_name = vd.findtext(f'{ns}RoadName') or ''
+            loc_mile = vd.findtext(f'{ns}LocationMile') or ''
+            # Parse km from LocationMile like '13K+550' -> 13.55
+            m = re.match(r'(\d+)K\+(\d+)', loc_mile)
+            km = (float(m.group(1)) + float(m.group(2)) / 1000) if m else 0.0
+            for dlink in vd.iter(f'{ns}DetectionLink'):
+                link_id = dlink.findtext(f'{ns}LinkID') or ''
+                road_dir = dlink.findtext(f'{ns}RoadDirection') or ''
+                lane_num = dlink.findtext(f'{ns}LaneNum') or '3'
+                if not link_id:
+                    continue
+                feature_code = link_id[6] if len(link_id) >= 7 else '0'
+                link_type = '主線' if feature_code == '0' else '匝道'
+                dir_text = dir_text_map.get(road_dir, road_dir)
+                _vd_xml_cache[link_id] = {
+                    'vd_id': vd_id,
+                    'road_name': road_name,
+                    'direction': dir_text,
+                    'road_dir': road_dir,
+                    'km': km,
+                    'lanes': lane_num,
+                    'type': link_type
+                }
+    except Exception as e:
+        print(f'VD XML cache error: {e}')
+    return _vd_xml_cache
+
+
+def get_browse_roads():
+    """Return structured region → road → IC list for the browser UI."""
+    ic_data = load_ic_data()
+    vd_cache = load_vd_xml_cache()
+
+    # Collect unique XML road names
+    xml_roads = sorted(set(v['road_name'] for v in vd_cache.values() if v['road_name']))
+
+    # Assign each XML road to a region
+    region_roads = {'北區': [], '中區': [], '南區': [], '快速公路': []}
+    for xml_road in xml_roads:
+        placed = False
+        for region, csv_roads in REGION_MAP.items():
+            csv_name = XML_TO_CSV_ROAD.get(xml_road, xml_road)
+            if csv_name in csv_roads:
+                region_roads[region].append(xml_road)
+                placed = True
+                break
+        if not placed:
+            region_roads['快速公路'].append(xml_road)
+
+    # Build IC list for each road
+    result = {}
+    for region, roads in region_roads.items():
+        if not roads:
+            continue
+        result[region] = {}
+        for xml_road in roads:
+            csv_name = XML_TO_CSV_ROAD.get(xml_road, xml_road)
+            ics = ic_data.get(csv_name, [])
+            result[region][xml_road] = sorted(ics, key=lambda x: x['km'])
+    return result
+
+
+def get_browse_links(road, link_type, direction, km_from, km_to):
+    """Return filtered link list from XML cache."""
+    vd_cache = load_vd_xml_cache()
+    seen = set()
+    links = []
+    for link_id, info in sorted(vd_cache.items(), key=lambda x: x[1]['km']):
+        if road and info['road_name'] != road:
+            continue
+        if link_type and link_type != '全部' and info['type'] != link_type:
+            continue
+        if direction and direction != '全部' and info['road_dir'] != direction:
+            continue
+        if km_from is not None and info['km'] < km_from:
+            continue
+        if km_to is not None and info['km'] > km_to:
+            continue
+        if link_id in seen:
+            continue
+        seen.add(link_id)
+        links.append({
+            'link_id': link_id,
+            'vd_id': info['vd_id'],
+            'road_name': info['road_name'],
+            'direction': info['direction'],
+            'type': info['type'],
+            'lanes': info['lanes'],
+            'km': round(info['km'], 3)
+        })
+    return links
+
+
 def get_link_metadata_details():
     links = []
     if os.path.exists(TARGET_LINKS_FILE):
@@ -342,6 +521,24 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
                             "ext": os.path.splitext(fname)[1].lower()
                         })
             self.wfile.write(json.dumps({"references": refs}, ensure_ascii=False).encode('utf-8'))
+        elif path == '/api/browse_roads':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(get_browse_roads(), ensure_ascii=False).encode('utf-8'))
+        elif path == '/api/browse_links':
+            road = urllib.parse.unquote(query.get('road', [''])[0])
+            link_type = urllib.parse.unquote(query.get('type', ['全部'])[0])
+            direction = urllib.parse.unquote(query.get('dir', ['全部'])[0])
+            km_from_s = query.get('km_from', [''])[0]
+            km_to_s = query.get('km_to', [''])[0]
+            km_from = float(km_from_s) if km_from_s else None
+            km_to = float(km_to_s) if km_to_s else None
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            links = get_browse_links(road, link_type, direction, km_from, km_to)
+            self.wfile.write(json.dumps({'links': links}, ensure_ascii=False).encode('utf-8'))
         else:
             super().do_GET()
 

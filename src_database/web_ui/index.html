@@ -203,47 +203,162 @@
 
     <!-- Tab 2: Target Links Management & Metadata Preview -->
     <section class="tab-content" id="tab-links">
-      <div class="grid-links-split">
-        <!-- Left: Text Editor with Vertical Stacked Button -->
-        <div class="card">
+
+      <!-- Row 1: Three-column link browser -->
+      <div class="grid-links-three">
+
+        <!-- Col A: Target Links Text Editor -->
+        <div class="card link-editor-col">
           <div class="card-header-stacked">
             <h2>分析路段文字檔 (target_links.txt)</h2>
-            <p class="subtitle-text">每行輸入一筆 14 碼 LinkID。</p>
-            <button id="saveLinksBtn" class="btn btn-success btn-full-width">💾 儲存變更</button>
+            <p class="subtitle-text">每行一筆 14 碼 LinkID。<br>可直接編輯，或從右側瀏覽器勾選後追加。</p>
+            <div class="link-editor-actions">
+              <button id="saveLinksBtn" class="btn btn-success btn-full-width">💾 儲存變更</button>
+              <button id="clearLinksBtn" class="btn btn-danger btn-full-width">🗑️ 清空全部</button>
+            </div>
           </div>
-          <textarea id="linksTextarea" rows="20" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
+          <textarea id="linksTextarea" rows="18" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
         </div>
 
-        <!-- Right: Real-time Link Metadata Preview Table with Full Scroll -->
-        <div class="card card-overflow-contain">
+        <!-- Col B: Link Browser Filters -->
+        <div class="card browser-filter-col">
+          <div class="card-header-stacked">
+            <h2>🔍 路段智慧瀏覽器</h2>
+            <p class="subtitle-text">依分區 → 路線 → 方向 / 型態 / 里程篩選 LinkID</p>
+          </div>
+
+          <div class="browser-filters">
+            <div class="filter-row">
+              <label>🗺️ 分局分區</label>
+              <div class="region-tabs" id="regionTabs">
+                <button class="region-btn active" data-region="北區">🔵 北區</button>
+                <button class="region-btn" data-region="中區">🟡 中區</button>
+                <button class="region-btn" data-region="南區">🔴 南區</button>
+                <button class="region-btn" data-region="快速公路">🟢 快速公路</button>
+              </div>
+            </div>
+
+            <div class="filter-row">
+              <label for="browseRoad">🛣️ 路線</label>
+              <select id="browseRoad">
+                <option value="">-- 請先選擇分區 --</option>
+              </select>
+            </div>
+
+            <div class="filter-row">
+              <label>🔀 方向</label>
+              <div class="radio-group" id="browseDirGroup">
+                <label><input type="radio" name="browseDir" value="全部" checked> 全部</label>
+                <label><input type="radio" name="browseDir" value="N"> 北上 (N)</label>
+                <label><input type="radio" name="browseDir" value="S"> 南下 (S)</label>
+                <label><input type="radio" name="browseDir" value="E"> 往東 (E)</label>
+                <label><input type="radio" name="browseDir" value="W"> 往西 (W)</label>
+              </div>
+            </div>
+
+            <div class="filter-row">
+              <label>📋 路段型態</label>
+              <div class="radio-group">
+                <label><input type="radio" name="browseType" value="全部" checked> 全部</label>
+                <label><input type="radio" name="browseType" value="主線"> 主線</label>
+                <label><input type="radio" name="browseType" value="匝道"> 匝道</label>
+              </div>
+            </div>
+
+            <div class="filter-row">
+              <label>📍 里程範圍 (km)</label>
+              <div class="km-range-group">
+                <div class="ic-select-group">
+                  <label class="sub-label">起點 IC</label>
+                  <select id="browseIcFrom">
+                    <option value="">-- 起點 IC --</option>
+                  </select>
+                </div>
+                <div class="ic-select-group">
+                  <label class="sub-label">迄點 IC</label>
+                  <select id="browseIcTo">
+                    <option value="">-- 迄點 IC --</option>
+                  </select>
+                </div>
+                <div class="km-inputs">
+                  <input type="number" id="browseKmFrom" placeholder="起始 km" min="0" step="0.5">
+                  <span>~</span>
+                  <input type="number" id="browseKmTo" placeholder="迄止 km" min="0" step="0.5">
+                </div>
+              </div>
+            </div>
+
+            <button id="browseQueryBtn" class="btn btn-primary btn-full-width">🔍 查詢路段清單</button>
+          </div>
+        </div>
+
+        <!-- Col C: Query Results with Checkboxes -->
+        <div class="card browser-result-col">
           <div class="card-header">
             <div>
-              <h2>實時點位與對照屬性預覽表</h2>
-              <p>與左側設定檔自動同步解析點位元數據。</p>
+              <h2>查詢結果 ＆ 勾選加入</h2>
+              <p id="browseResultCount" class="subtitle-text">尚未查詢</p>
             </div>
-            <span class="badge-count" id="linksCountBadge">共 24 筆</span>
           </div>
+
+          <div class="browser-result-actions">
+            <button id="browseSelectAll" class="btn btn-sm btn-secondary">✔ 全選</button>
+            <button id="browseDeselectAll" class="btn btn-sm btn-secondary">✖ 全取消</button>
+            <button id="browseAddBtn" class="btn btn-sm btn-success">➕ 追加至分析路段</button>
+          </div>
+
           <div class="table-responsive-scroll">
-            <table class="data-table-sm">
+            <table class="data-table-sm" id="browseResultTable">
               <thead>
                 <tr>
+                  <th class="col-check"><input type="checkbox" id="browseCheckAll" title="全選"></th>
                   <th class="col-num">#</th>
-                  <th class="col-linkid">路段代碼 (LinkID)</th>
-                  <th class="col-vdid">偵測器代碼 (VDID)</th>
-                  <th class="col-road">道路名稱</th>
+                  <th class="col-linkid">LinkID</th>
                   <th class="col-dir">方向</th>
                   <th class="col-type">型態</th>
-                  <th class="col-lanes">車道數</th>
+                  <th class="col-km">里程</th>
                 </tr>
               </thead>
-              <tbody id="linksMetadataBody">
-                <!-- Dynamically populated -->
+              <tbody id="browseResultBody">
+                <tr><td colspan="6" class="empty-msg">請使用左側篩選條件後點擊查詢</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      <!-- Row 2: Real-time Metadata Preview (below three columns) -->
+      <div class="card margin-top card-overflow-contain">
+        <div class="card-header">
+          <div>
+            <h2>實時點位與對照屬性預覽表</h2>
+            <p>與左側分析路段文字檔自動同步解析點位元數據。</p>
+          </div>
+          <span class="badge-count" id="linksCountBadge">共 0 筆</span>
+        </div>
+        <div class="table-responsive-scroll">
+          <table class="data-table-sm metadata-fixed-table">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th class="col-linkid">路段代碼 (LinkID)</th>
+                <th class="col-vdid">偵測器代碼 (VDID)</th>
+                <th class="col-road">道路名稱</th>
+                <th class="col-dir">方向</th>
+                <th class="col-type">型態</th>
+                <th class="col-lanes">車道數</th>
+                <th class="col-act">操作</th>
+              </tr>
+            </thead>
+            <tbody id="linksMetadataBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </section>
+
 
     <!-- Tab 3: Reports & Logs -->
     <section class="tab-content" id="tab-reports">

@@ -151,6 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
           clearInterval(pollTimer);
           resetRunButton();
           if (data.status === 'completed') {
+            // Sync date input to analyzed date so table shows correct data
+            if (currentAnalyzingDate && currentAnalyzingDate.length === 8) {
+              const yyyy = currentAnalyzingDate.slice(0, 4);
+              const mm = currentAnalyzingDate.slice(4, 6);
+              const dd = currentAnalyzingDate.slice(6, 8);
+              dateInput.value = `${yyyy}-${mm}-${dd}`;
+              updateDayBadge();
+            }
             loadLatestResults(currentAnalyzingDate);
             loadReports();
             loadLogs();
@@ -373,16 +381,28 @@ document.addEventListener('DOMContentLoaded', () => {
       linksMetadataBody.innerHTML = '';
       rawMetadataList.forEach((m, idx) => {
         const tr = document.createElement('tr');
+        tr.dataset.linkid = m.link_id;
         tr.innerHTML = `
           <td>${idx + 1}</td>
-          <td style="font-family:var(--font-mono); font-weight:600; color:var(--primary);">${m.link_id}</td>
-          <td style="font-family:var(--font-mono);">${m.vd_id}</td>
+          <td style="font-family:var(--font-mono); font-weight:600; color:var(--primary); word-break:break-all;">${m.link_id}</td>
+          <td style="font-family:var(--font-mono); word-break:break-all;">${m.vd_id}</td>
           <td>${m.road_name}</td>
           <td>${m.direction}</td>
           <td><span class="type-badge">${m.type}</span></td>
           <td>${m.lanes} 車道</td>
+          <td><button class="btn-row-delete" data-linkid="${m.link_id}">− 刪除</button></td>
         `;
         linksMetadataBody.appendChild(tr);
+      });
+
+      // Attach delete handlers
+      linksMetadataBody.querySelectorAll('.btn-row-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const lid = btn.dataset.linkid;
+          const lines = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x && x !== lid);
+          linksTextarea.value = lines.join('\n');
+          loadLinkMetadata();
+        });
       });
     } catch (err) {
       console.error(err);
@@ -405,6 +425,158 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       alert('儲存失敗');
     }
+  });
+
+  document.getElementById('clearLinksBtn').addEventListener('click', () => {
+    if (confirm('確定要清空所有分析路段嗎？')) {
+      linksTextarea.value = '';
+    }
+  });
+
+  // ============================================================
+  // Browser Logic: Cascading region → road → IC → query → check
+  // ============================================================
+  let browseRoadData = {};  // { region: { road: [{name, km}...] } }
+  let browseResultLinks = [];  // current query result
+
+  async function initBrowser() {
+    try {
+      const resp = await fetch('/api/browse_roads');
+      browseRoadData = await resp.json();
+      // Trigger initial region population
+      updateRoadDropdown('北區');
+    } catch (e) { console.error(e); }
+  }
+
+  function updateRoadDropdown(region) {
+    const browseRoad = document.getElementById('browseRoad');
+    browseRoad.innerHTML = '<option value="">-- 選擇路線 --</option>';
+    const roads = browseRoadData[region];
+    if (!roads) return;
+    Object.keys(roads).forEach(road => {
+      const opt = document.createElement('option');
+      opt.value = road;
+      opt.textContent = road;
+      browseRoad.appendChild(opt);
+    });
+    updateICDropdowns(region, '');
+  }
+
+  function updateICDropdowns(region, road) {
+    const fromSel = document.getElementById('browseIcFrom');
+    const toSel = document.getElementById('browseIcTo');
+    fromSel.innerHTML = '<option value="">-- 起點 IC (選填) --</option>';
+    toSel.innerHTML = '<option value="">-- 迄點 IC (選填) --</option>';
+    const ics = browseRoadData[region]?.[road] || [];
+    ics.forEach(ic => {
+      const makeOpt = () => {
+        const o = document.createElement('option');
+        o.value = ic.km;
+        o.textContent = `${ic.name} (${ic.km}K)`;
+        return o;
+      };
+      fromSel.appendChild(makeOpt());
+      toSel.appendChild(makeOpt());
+    });
+  }
+
+  // Region tab click
+  document.getElementById('regionTabs').addEventListener('click', e => {
+    const btn = e.target.closest('.region-btn');
+    if (!btn) return;
+    document.querySelectorAll('.region-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const region = btn.dataset.region;
+    updateRoadDropdown(region);
+  });
+
+  // Road dropdown change
+  document.getElementById('browseRoad').addEventListener('change', () => {
+    const region = document.querySelector('.region-btn.active')?.dataset.region || '';
+    const road = document.getElementById('browseRoad').value;
+    updateICDropdowns(region, road);
+  });
+
+  // IC from/to sync km inputs
+  document.getElementById('browseIcFrom').addEventListener('change', () => {
+    const v = document.getElementById('browseIcFrom').value;
+    if (v) document.getElementById('browseKmFrom').value = v;
+  });
+  document.getElementById('browseIcTo').addEventListener('change', () => {
+    const v = document.getElementById('browseIcTo').value;
+    if (v) document.getElementById('browseKmTo').value = v;
+  });
+
+  // Query button
+  document.getElementById('browseQueryBtn').addEventListener('click', async () => {
+    const road = document.getElementById('browseRoad').value;
+    if (!road) { alert('請先選擇路線'); return; }
+    const type = document.querySelector('input[name="browseType"]:checked')?.value || '全部';
+    const dir = document.querySelector('input[name="browseDir"]:checked')?.value || '全部';
+    const kmFrom = document.getElementById('browseKmFrom').value;
+    const kmTo = document.getElementById('browseKmTo').value;
+
+    let url = `/api/browse_links?road=${encodeURIComponent(road)}&type=${encodeURIComponent(type)}&dir=${encodeURIComponent(dir)}`;
+    if (kmFrom) url += `&km_from=${kmFrom}`;
+    if (kmTo) url += `&km_to=${kmTo}`;
+
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      browseResultLinks = data.links || [];
+      renderBrowseResults(browseResultLinks);
+    } catch(e) { console.error(e); }
+  });
+
+  function renderBrowseResults(links) {
+    const tbody = document.getElementById('browseResultBody');
+    const countEl = document.getElementById('browseResultCount');
+    countEl.textContent = `查詢結果：共 ${links.length} 筆`;
+    tbody.innerHTML = '';
+    if (links.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">無符合條件的路段</td></tr>';
+      return;
+    }
+    links.forEach((lk, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="browse-check" checked data-linkid="${lk.link_id}"></td>
+        <td>${idx + 1}</td>
+        <td style="font-family:var(--font-mono); color:var(--primary); font-size:0.78rem;">${lk.link_id}</td>
+        <td>${lk.direction}</td>
+        <td><span class="type-badge">${lk.type}</span></td>
+        <td>${lk.km}K</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    // Sync header checkbox
+    document.getElementById('browseCheckAll').checked = true;
+  }
+
+  // Header checkbox toggle all
+  document.getElementById('browseCheckAll').addEventListener('change', e => {
+    document.querySelectorAll('.browse-check').forEach(cb => cb.checked = e.target.checked);
+  });
+
+  document.getElementById('browseSelectAll').addEventListener('click', () => {
+    document.querySelectorAll('.browse-check').forEach(cb => cb.checked = true);
+    document.getElementById('browseCheckAll').checked = true;
+  });
+
+  document.getElementById('browseDeselectAll').addEventListener('click', () => {
+    document.querySelectorAll('.browse-check').forEach(cb => cb.checked = false);
+    document.getElementById('browseCheckAll').checked = false;
+  });
+
+  // Append checked to textarea
+  document.getElementById('browseAddBtn').addEventListener('click', () => {
+    const checked = [...document.querySelectorAll('.browse-check:checked')].map(cb => cb.dataset.linkid);
+    if (checked.length === 0) { alert('請至少勾選一筆路段'); return; }
+    const existing = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x);
+    const combined = [...new Set([...existing, ...checked])];
+    linksTextarea.value = combined.join('\n');
+    loadLinkMetadata();
+    alert(`已追加 ${checked.length} 筆 LinkID（重複自動去除）`);
   });
 
   // 9. Reports List
@@ -506,4 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadReferences();
   const initialDate = dateInput.value.replace(/-/g, '');
   loadLatestResults(initialDate);
+  initBrowser();
 });
+
