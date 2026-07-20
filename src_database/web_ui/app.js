@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
       yAxis: {
         type: 'value',
         name: '車速 (KPH)',
-        min: 30,
+        min: 0,
         max: 120,
         nameTextStyle: { color: '#94a3b8' },
         axisLine: { lineStyle: { color: '#475569' } },
@@ -444,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const resp = await fetch('/api/browse_roads');
       browseRoadData = await resp.json();
       // Trigger initial region population
-      updateRoadDropdown('北區');
+      updateRoadDropdown('國道主線');
     } catch (e) { console.error(e); }
   }
 

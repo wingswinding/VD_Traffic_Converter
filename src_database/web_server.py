@@ -21,16 +21,22 @@ if not os.path.exists(VD_POINT_LIST_FILE):
     VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
 IC_CSV_FILE = os.path.join(REF_DIR, 'Freeway_Interchanges_Full.csv')
 
-# ── 養護分局分區定義（整條路線 → 分區）──────────────────────────────────────────
-REGION_MAP = {
-    '北區': ['國道1號(含汐五及五楊高架)', '國道2號(含國2甲)', '國道3號(含國3甲)', '國道5號(蔣渭水高速公路)'],
-    '中區': ['國道4號(台中環線)', '國道6號'],
-    '南區': ['國道8號(台南支線)', '國道10號(高雄支線)'],
-}
-# XML RoadName → CSV 路線名稱 (for IC lookup)
+# ── 路段類型分類（依路線名稱字串動態判斷）──────────────────────────────────────────
+def categorize_xml_road(road_name):
+    """Categorize XML RoadName into 國道主線 / 國道支線 / 快速道路 / 其他."""
+    if '快速公路' in road_name:
+        return '快速道路'
+    if road_name.startswith('國道') and ('甲' in road_name or '乙' in road_name):
+        return '國道支線'
+    if road_name.startswith('國道'):
+        return '國道主線'
+    return '其他'
+
+# XML RoadName → CSV 路線名稱（用於交流道里程對照）
 XML_TO_CSV_ROAD = {
     '國道1號': '國道1號(含汐五及五楊高架)',
     '國道2號': '國道2號(含國2甲)',
+    '國道2甲': '國道2號(含國2甲)',
     '國道3號': '國道3號(含國3甲)',
     '國道3甲': '國道3號(含國3甲)',
     '國道4號': '國道4號(台中環線)',
@@ -38,15 +44,6 @@ XML_TO_CSV_ROAD = {
     '國道6號': '國道6號',
     '國道8號': '國道8號(台南支線)',
     '國道10號': '國道10號(高雄支線)',
-    '快速公路62號': '快速公路62號',
-    '快速公路64號': '快速公路64號',
-    '快速公路72號': '快速公路72號',
-    '快速公路74號': '快速公路74號',
-    '快速公路76號': '快速公路76號',
-    '快速公路78號': '快速公路78號',
-    '快速公路82號': '快速公路82號',
-    '快速公路84號': '快速公路84號',
-    '快速公路86號': '快速公路86號',
 }
 
 # Global State for Analysis Run
@@ -303,36 +300,29 @@ def load_vd_xml_cache():
 
 
 def get_browse_roads():
-    """Return structured region → road → IC list for the browser UI."""
+    """Return structured type → road → IC list for the browser UI."""
     ic_data = load_ic_data()
     vd_cache = load_vd_xml_cache()
 
     # Collect unique XML road names
     xml_roads = sorted(set(v['road_name'] for v in vd_cache.values() if v['road_name']))
 
-    # Assign each XML road to a region
-    region_roads = {'北區': [], '中區': [], '南區': [], '快速公路': []}
+    # Assign each XML road to a type category
+    type_roads = {'國道主線': [], '國道支線': [], '快速道路': [], '其他': []}
     for xml_road in xml_roads:
-        placed = False
-        for region, csv_roads in REGION_MAP.items():
-            csv_name = XML_TO_CSV_ROAD.get(xml_road, xml_road)
-            if csv_name in csv_roads:
-                region_roads[region].append(xml_road)
-                placed = True
-                break
-        if not placed:
-            region_roads['快速公路'].append(xml_road)
+        cat = categorize_xml_road(xml_road)
+        type_roads[cat].append(xml_road)
 
     # Build IC list for each road
     result = {}
-    for region, roads in region_roads.items():
+    for cat, roads in type_roads.items():
         if not roads:
             continue
-        result[region] = {}
+        result[cat] = {}
         for xml_road in roads:
             csv_name = XML_TO_CSV_ROAD.get(xml_road, xml_road)
             ics = ic_data.get(csv_name, [])
-            result[region][xml_road] = sorted(ics, key=lambda x: x['km'])
+            result[cat][xml_road] = sorted(ics, key=lambda x: x['km'])
     return result
 
 
