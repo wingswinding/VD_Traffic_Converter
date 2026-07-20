@@ -217,6 +217,11 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
 }
 
+.btn-full-width {
+  width: 100%;
+  margin-top: 10px;
+}
+
 .btn-sm {
   padding: 6px 12px;
   font-size: 0.8rem;
@@ -334,7 +339,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .card-overflow-contain {
-  min-width: 0; /* Prevents flex/grid child overflow */
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -437,9 +442,12 @@ input:focus, select:focus, textarea:focus {
   width: 100%;
 }
 
-.table-responsive-contain {
+.table-responsive-scroll {
   overflow-x: auto;
-  max-width: 100%;
+  max-height: 520px;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
 }
 
 .data-table {
@@ -465,25 +473,49 @@ input:focus, select:focus, textarea:focus {
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* Compact Table in Tab 2 */
+/* Tab 2 Compact Metadata Table */
 .data-table-sm {
   width: 100%;
-  table-layout: auto;
+  min-width: 680px; /* Guarantees all 7 columns render comfortably with horizontal scroll */
   border-collapse: collapse;
   font-size: 0.82rem;
-  word-break: break-all;
 }
 
 .data-table-sm th, .data-table-sm td {
-  padding: 8px 6px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border-color);
   text-align: center;
   white-space: nowrap;
 }
 
 .data-table-sm th {
-  background: rgba(0, 242, 254, 0.05);
+  background: rgba(0, 242, 254, 0.08);
   color: var(--primary);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 700;
+}
+
+.col-num { width: 40px; }
+.col-linkid { width: 140px; }
+.col-vdid { width: 180px; }
+.col-road { width: 90px; }
+.col-dir { width: 70px; }
+.col-type { width: 70px; }
+.col-lanes { width: 75px; }
+
+/* Tab 2 Header Stacked */
+.card-header-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.subtitle-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 /* LOS Badges */

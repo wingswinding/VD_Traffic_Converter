@@ -133,7 +133,7 @@
           <div class="filter-controls">
             <!-- Highway Filter -->
             <select id="filterHighway">
-              <option value="ALL">🛣️ 全國道路線 (全選)</option>
+              <option value="ALL">流域/國道選單 (全選)</option>
               <option value="國道2號">國道2號</option>
             </select>
 
@@ -182,7 +182,7 @@
         </div>
       </div>
 
-      <!-- 2. Full-Width Banner 1: V/C Chart (後圖：V/C 圖) -->
+      <!-- 2. Full-Width Banner 1: V/C Chart -->
       <div class="chart-banner-card margin-bottom">
         <div class="banner-header">
           <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
@@ -191,7 +191,7 @@
         <div id="vcChart" class="chart-box-banner"></div>
       </div>
 
-      <!-- 3. Full-Width Banner 2: Speed Chart (後圖：速率圖) -->
+      <!-- 3. Full-Width Banner 2: Speed Chart -->
       <div class="chart-banner-card margin-bottom">
         <div class="banner-header">
           <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
@@ -204,19 +204,17 @@
     <!-- Tab 2: Target Links Management & Metadata Preview -->
     <section class="tab-content" id="tab-links">
       <div class="grid-links-split">
-        <!-- Left: Text Editor -->
+        <!-- Left: Text Editor with Vertical Stacked Button -->
         <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>分析路段文字檔 (target_links.txt)</h2>
-              <p>每行輸入一筆 14 碼 LinkID。</p>
-            </div>
-            <button id="saveLinksBtn" class="btn btn-success">💾 儲存變更</button>
+          <div class="card-header-stacked">
+            <h2>分析路段文字檔 (target_links.txt)</h2>
+            <p class="subtitle-text">每行輸入一筆 14 碼 LinkID。</p>
+            <button id="saveLinksBtn" class="btn btn-success btn-full-width">💾 儲存變更</button>
           </div>
-          <textarea id="linksTextarea" rows="22" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
+          <textarea id="linksTextarea" rows="20" placeholder="例如:&#10;0000201001000H&#10;0000201101040H&#10;0000200000200H"></textarea>
         </div>
 
-        <!-- Right: Real-time Link Metadata Preview Table -->
+        <!-- Right: Real-time Link Metadata Preview Table with Full Scroll -->
         <div class="card card-overflow-contain">
           <div class="card-header">
             <div>
@@ -225,17 +223,17 @@
             </div>
             <span class="badge-count" id="linksCountBadge">共 24 筆</span>
           </div>
-          <div class="table-responsive-contain">
+          <div class="table-responsive-scroll">
             <table class="data-table-sm">
               <thead>
                 <tr>
-                  <th style="width: 35px;">#</th>
-                  <th style="width: 140px;">路段代碼 (LinkID)</th>
-                  <th style="width: 170px;">偵測器代碼 (VDID)</th>
-                  <th style="width: 80px;">道路名稱</th>
-                  <th style="width: 60px;">方向</th>
-                  <th style="width: 60px;">型態</th>
-                  <th style="width: 65px;">車道數</th>
+                  <th class="col-num">#</th>
+                  <th class="col-linkid">路段代碼 (LinkID)</th>
+                  <th class="col-vdid">偵測器代碼 (VDID)</th>
+                  <th class="col-road">道路名稱</th>
+                  <th class="col-dir">方向</th>
+                  <th class="col-type">型態</th>
+                  <th class="col-lanes">車道數</th>
                 </tr>
               </thead>
               <tbody id="linksMetadataBody">
