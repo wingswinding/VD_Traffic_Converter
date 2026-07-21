@@ -11,9 +11,9 @@ where python >nul 2>nul
 if %errorlevel% neq 0 goto NO_PYTHON
 
 python -c "import requests, urllib3, openpyxl" >nul 2>nul
-if %errorlevel% neq 0 goto INSTALL_PACKAGES
+if %errorlevel% equ 0 goto START_SERVER
 
-goto START_SERVER
+goto INSTALL_PACKAGES
 
 :NO_PYTHON
 echo [Notice] Python environment is not detected on this computer.
@@ -33,9 +33,10 @@ exit /b 1
 
 :INSTALL_PACKAGES
 echo [Notice] Installing required packages (requests, urllib3, openpyxl)...
-python -m pip install -r requirements.txt
-if %errorlevel% neq 0 goto FAIL_PACKAGES
-goto START_SERVER
+python -m pip install --user requests urllib3 openpyxl --trusted-host pypi.org --trusted-host files.pythonhosted.org
+python -c "import requests, urllib3, openpyxl" >nul 2>nul
+if %errorlevel% equ 0 goto START_SERVER
+goto FAIL_PACKAGES
 
 :FAIL_PACKAGES
 echo [Error] Failed to install packages. Please check internet connection.
