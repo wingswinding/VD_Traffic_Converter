@@ -159,7 +159,29 @@ def download_vd_data(date_str, hours):
                 
     return date_dir
 
-def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode='peak', pce_s=1.0, pce_l=1.5, pce_t=2.0):
+def parse_custom_blocks(custom_hours_str):
+    """Parse custom hours string into consecutive hour blocks."""
+    blocks = []
+    parts = [p.strip() for p in custom_hours_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            try:
+                s_h, e_h = map(int, part.split('-'))
+                hours = [h for h in range(s_h, e_h) if 0 <= h < 24]
+                if hours:
+                    blocks.append(hours)
+            except ValueError:
+                pass
+        elif part.isdigit():
+            h = int(part)
+            if 0 <= h < 24:
+                if blocks and blocks[-1][-1] == h - 1:
+                    blocks[-1].append(h)
+                else:
+                    blocks.append([h])
+    return blocks
+
+def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.5, pce_t=2.0):
     hours_list, period_map = hours_config
     
     hourly_data = {h: {lid: {
@@ -249,19 +271,37 @@ def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode
 
     final_peak_metrics = {lid: {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}} for lid in target_links}
     
-    if mode == 'peak':
-        # 15-minute sliding 1-hour window peak calculation:
-        # Weekday: Morning 07:00~09:00 (starts 0700, 0715, 0730, 0745, 0800), Evening 17:00~19:00 (starts 1700, 1715, 1730, 1745, 1800)
-        # Weekend: Morning 10:00~12:00, Evening 16:00~18:00
-        if is_weekend:
-            m_starts = [600, 615, 630, 645, 660]   # 10:00 ~ 12:00
-            e_starts = [960, 975, 990, 1005, 1020]  # 16:00 ~ 18:00
-        else:
-            m_starts = [420, 435, 450, 465, 480]    # 07:00 ~ 09:00
-            e_starts = [1020, 1035, 1050, 1065, 1080] # 17:00 ~ 19:00
+    use_sliding = False
+    m_starts = []
+    e_starts = []
 
+    if mode == 'peak':
+        use_sliding = True
+        if is_weekend:
+            m_starts = [600, 615, 630, 645, 660]    # 10:00 ~ 12:00
+            e_starts = [960, 975, 990, 1005, 1020]   # 16:00 ~ 18:00
+        else:
+            m_starts = [420, 435, 450, 465, 480]     # 07:00 ~ 09:00
+            e_starts = [1020, 1035, 1050, 1065, 1080] # 17:00 ~ 19:00
+    elif mode == 'custom' and custom_hours_str:
+        blocks = parse_custom_blocks(custom_hours_str)
+        # Rule: 4小時內使用15分鐘間隔最大量；4小時以上使用獨立小時
+        if blocks and all(len(b) <= 4 for b in blocks):
+            use_sliding = True
+            b1 = blocks[0]
+            start_m1 = b1[0] * 60
+            end_m1 = (b1[-1] + 1) * 60
+            m_starts = list(range(start_m1, max(start_m1 + 1, end_m1 - 60 + 1), 15))
+
+            if len(blocks) > 1:
+                b2 = blocks[1]
+                start_m2 = b2[0] * 60
+                end_m2 = (b2[-1] + 1) * 60
+                e_starts = list(range(start_m2, max(start_m2 + 1, end_m2 - 60 + 1), 15))
+
+    if use_sliding and m_starts:
         for lid in target_links:
-            # Morning Peak: find 1-hour sliding window with max PCU
+            # Morning Peak / Block 1
             m_best_pcu, m_best_spd = 0, 0
             for start in m_starts:
                 end = start + 60
@@ -277,9 +317,9 @@ def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode
                     m_best_pcu = pcu
                     m_best_spd = spd
 
-            # Evening Peak: find 1-hour sliding window with max PCU
+            # Evening Peak / Block 2 (if present, else use m_starts)
             e_best_pcu, e_best_spd = 0, 0
-            for start in e_starts:
+            for start in (e_starts or m_starts):
                 end = start + 60
                 tot_s = sum(minute_data.get(m, {}).get(lid, {}).get('S', 0) for m in range(start, end))
                 tot_l = sum(minute_data.get(m, {}).get(lid, {}).get('L', 0) for m in range(start, end))
@@ -296,7 +336,7 @@ def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode
             final_peak_metrics[lid]['morning'] = {'pcu': m_best_pcu, 'speed': m_best_spd}
             final_peak_metrics[lid]['evening'] = {'pcu': e_best_pcu, 'speed': e_best_spd}
     else:
-        # Fullday or custom mode: max hourly PCU
+        # Fullday or custom mode (> 4 hours): Independent 1-hour slots method
         for lid in target_links:
             m_pcu, m_spd = 0, 0
             e_pcu, e_spd = 0, 0
@@ -610,7 +650,7 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
     print(f"Loaded {len(target_links)} target LinkIDs.")
     
     date_dir = download_vd_data(date_str, download_hours)
-    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, pce_s, pce_l, pce_t)
+    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, custom_hours_str, pce_s, pce_l, pce_t)
     meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
     
     mainline_rows = []
