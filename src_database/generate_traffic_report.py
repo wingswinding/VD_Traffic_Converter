@@ -572,8 +572,21 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
         period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in range(24)}
         download_hours = list(range(24))
     elif mode == 'custom' and custom_hours_str:
-        # custom_hours_str e.g. "7,8,17,18"
-        chours = [int(x.strip()) for x in custom_hours_str.split(',') if x.strip().isdigit()]
+        # custom_hours_str supports "7,8,17,18" or ranges like "7-9, 17-19"
+        chours = []
+        for part in custom_hours_str.split(','):
+            part = part.strip()
+            if '-' in part:
+                try:
+                    s_h, e_h = map(int, part.split('-'))
+                    for h in range(s_h, e_h):
+                        if 0 <= h < 24 and h not in chours: chours.append(h)
+                except ValueError: pass
+            elif part.isdigit():
+                h = int(part)
+                if 0 <= h < 24 and h not in chours: chours.append(h)
+        chours.sort()
+        if not chours: chours = [7, 8, 17, 18]
         hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in chours]
         period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in chours}
         download_hours = chours
