@@ -518,32 +518,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let kmFrom = document.getElementById('browseKmFrom').value;
     let kmTo   = document.getElementById('browseKmTo').value;
 
-    // ── 匝道型態：自動擴展起迄里程至上下游交流道 ──
-    if (type === '匝道' && (kmFrom !== '' || kmTo !== '')) {
-      const region = document.querySelector('.region-btn.active')?.dataset.region || '';
-      const ics = (browseRoadData[region]?.[road] || []).slice().sort((a, b) => a.km - b.km);
-      if (ics.length > 0) {
-        const fromKm = kmFrom !== '' ? parseFloat(kmFrom) : ics[0].km;
-        const toKm   = kmTo   !== '' ? parseFloat(kmTo)   : ics[ics.length - 1].km;
-
-        // Find the IC whose km matches (within 0.5K tolerance)
-        const fromIdx = ics.findIndex(ic => Math.abs(ic.km - fromKm) < 0.5);
-        const toIdx   = ics.findIndex(ic => Math.abs(ic.km - toKm)   < 0.5);
-
-        // Expand: one IC before fromIdx, one IC after toIdx
-        const expandedFrom = (fromIdx > 0)                   ? ics[fromIdx - 1].km : ics[0].km;
-        const expandedTo   = (toIdx >= 0 && toIdx < ics.length - 1) ? ics[toIdx + 1].km : ics[ics.length - 1].km;
-
-        kmFrom = expandedFrom;
-        kmTo   = expandedTo;
-
-        // Show user which ICs were selected
-        const fromName = fromIdx > 0 ? ics[fromIdx - 1].name : ics[0].name;
-        const toName   = toIdx >= 0 && toIdx < ics.length - 1 ? ics[toIdx + 1].name : ics[ics.length - 1].name;
-        document.getElementById('browseResultCount').textContent =
-          `匝道模式擴展範圍：${fromName}(${kmFrom}K) ~ ${toName}(${kmTo}K) 查詢中...`;
-      }
+    // ── 匝道型態：起迄各 ±2K 自動擴展搜尋範圍 ──
+    // 無論起迄順序正反，一律取 min-2K ~ max+2K
+    if (type === '匝道' && kmFrom !== '' && kmTo !== '') {
+      const a = parseFloat(kmFrom);
+      const b = parseFloat(kmTo);
+      const expandedFrom = Math.max(0, Math.min(a, b) - 2);
+      const expandedTo   = Math.max(a, b) + 2;
+      kmFrom = expandedFrom;
+      kmTo   = expandedTo;
+      document.getElementById('browseResultCount').textContent =
+        `匝道模式擴展範圍：${expandedFrom}K ~ ${expandedTo}K 查詢中...`;
     }
+
 
     let url = `/api/browse_links?road=${encodeURIComponent(road)}&type=${encodeURIComponent(type)}&dir=${encodeURIComponent(dir)}`;
     if (kmFrom !== '') url += `&km_from=${kmFrom}`;
