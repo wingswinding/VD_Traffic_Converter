@@ -733,8 +733,8 @@ def run_server(port=8000):
     httpd = QuietHTTPServer(server_address, VDRequestHandler)
     print(f"==================================================", flush=True)
     print(f"  VD Traffic Report Web UI Server Started!", flush=True)
-    print(f"  伺服器已成功啟動並運行中！(請保持此控制台視窗開啟)", flush=True)
-    print(f"  請使用瀏覽器開啟: http://localhost:{port}", flush=True)
+    print(f"  Server is running at http://localhost:{port}", flush=True)
+    print(f"  Please keep this console window open.", flush=True)
     print(f"==================================================", flush=True)
     try:
         httpd.serve_forever()
