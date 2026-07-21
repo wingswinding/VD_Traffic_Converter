@@ -511,16 +511,16 @@ input:focus, select:focus, textarea:focus {
   font-weight: 700;
 }
 
-.col-num { width: 38px; }
-.col-check { width: 32px; }
-.col-linkid { min-width: 130px; max-width: 160px; font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all; }
-.col-vdid { min-width: 160px; max-width: 200px; font-family: var(--font-mono); font-size: 0.78rem; word-break: break-all; }
-.col-road { min-width: 80px; max-width: 100px; }
-.col-dir { width: 60px; }
-.col-type { width: 60px; }
-.col-lanes { width: 60px; }
+.col-num { width: 45px; }
+.col-check { width: 35px; }
+.col-linkid { width: 165px; font-family: var(--font-mono); font-size: 0.8rem; }
+.col-vdid { width: 260px; font-family: var(--font-mono); font-size: 0.78rem; }
+.col-road { width: 110px; }
+.col-dir { width: 65px; }
+.col-type { width: 65px; }
+.col-lanes { width: 75px; }
 .col-km { width: 70px; }
-.col-act { width: 70px; }
+.col-act { width: 115px; white-space: nowrap; }
 
 /* Metadata table: fixed layout to prevent overflow */
 .metadata-fixed-table { table-layout: fixed; width: 100%; }
@@ -733,7 +733,7 @@ input:focus, select:focus, textarea:focus {
 
 .col-act {
   white-space: nowrap;
-  width: 100px;
+  width: 115px;
 }
 
 

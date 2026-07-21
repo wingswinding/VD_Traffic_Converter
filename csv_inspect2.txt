@@ -1,0 +1,4 @@
+  File "<string>", line 22
+    print(f'{road}: {len(ics)} ICs  -> first5: {[i[\
+                                                  ^
+SyntaxError: '[' was never closed

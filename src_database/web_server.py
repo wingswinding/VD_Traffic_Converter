@@ -19,32 +19,46 @@ REF_DIR = os.path.join(BASE_DIR, 'reference_files')
 VD_POINT_LIST_FILE = os.path.join(REF_DIR, 'vd_point_list.xml')
 if not os.path.exists(VD_POINT_LIST_FILE):
     VD_POINT_LIST_FILE = os.path.join(BASE_DIR, 'vd_point_list.xml')
-IC_CSV_FILE = os.path.join(REF_DIR, 'Freeway_Interchanges_Full.csv')
+IC_CSV_FILE   = os.path.join(REF_DIR, 'Freeway_Interchanges_Full.csv')
+EXPR_CSV_FILE = os.path.join(REF_DIR, 'Expressway_Interchanges.csv')
 
 # ── 路段類型分類（依路線名稱字串動態判斷）──────────────────────────────────────────
 def categorize_xml_road(road_name):
-    """Categorize XML RoadName into 國道主線 / 國道支線 / 快速道路 / 其他."""
+    """將 XML RoadName 分類為 國道主線 / 國道支線 / 快速道路 / 其他."""
     if '快速公路' in road_name:
         return '快速道路'
-    if road_name.startswith('國道') and ('甲' in road_name or '乙' in road_name):
+    if '高架' in road_name or (road_name.startswith('國道') and ('甲' in road_name or '乙' in road_name)):
         return '國道支線'
     if road_name.startswith('國道'):
         return '國道主線'
     return '其他'
 
-# XML RoadName → IC查詢鍵値（格式：CSV路線|子表格區分）
+# XML RoadName → CSV 路線名稱對照
 XML_TO_CSV_ROAD = {
-    '國道1號': '國道1號(含汐五及五楊高架)|第 1 表',   # 主線
-    '台1甲':  '國道1號(含汐五及五楊高架)|第 2 表',   # 汐五/五楊高架
-    '國道2號': '國道2號(含國2甲)|第 1 表',
-    '國道2甲': '國道2號(含國2甲)|第 2 表',
-    '國道3號': '國道3號(含國3甲)|第 1 表',
-    '國道3甲': '國道3號(含國3甲)|第 2 表',
-    '國道4號': '國道4號(台中環線)|第 1 表',
-    '國道5號': '國道5號(蔣渭水高速公路)|第 1 表',
-    '國道6號': '國道6號|第 1 表',
-    '國道8號': '國道8號(台南支線)|第 1 表',
-    '國道10號': '國道10號(高雄支線)|第 1 表',
+    '國道1號':  '國道1號',
+    '國1高架':  '汐五及五楊高架',  # XML 中的 國1高架 對應 CSV 汐五及五楊高架
+    '台1甲':   '汐五及五楊高架',
+    '國道2號':  '國道2號',
+    '國道2甲':  '國道2甲',
+    '國道3號':  '國道3號',
+    '國道3甲':  '國道3甲',
+    '國道4號':  '國道4號',
+    '國道5號':  '國道5號',
+    '國道6號':  '國道6號',
+    '國道8號':  '國道8號',
+    '國道10號': '國道10號',
+    # 快速公路對應 Expressway_Interchanges.csv 中的 路線名稱
+    '快速公路62號': '快速公路62號',
+    '快速公路64號': '快速公路64號',
+    '快速公路72號': '快速公路72號',
+    '快速公路74甲': '快速公路74甲',
+    '快速公路74號': '快速公路74號',
+    '快速公路76號': '快速公路76號',
+    '快速公路78號': '快速公路78號',
+    '快速公路82號': '快速公路82號',
+    '快速公路84號': '快速公路84號',
+    '快速公路86號': '快速公路86號',
+    '快速公路88號': '快速公路88號',
 }
 
 # Global State for Analysis Run
@@ -222,41 +236,48 @@ _ic_cache = None
 _vd_xml_cache = None
 
 def load_ic_data():
-    """Load IC data keyed by 'csv_road|subtable' for precise per-road IC lookup."""
+    """Load IC data from both Freeway and Expressway CSVs. Key = road name (exact 路線 value)."""
     global _ic_cache
     if _ic_cache is not None:
         return _ic_cache
-    _ic_cache = {}  # key: "csv_road|子表格區分" -> list of {name, km}
-    if not os.path.exists(IC_CSV_FILE):
-        return _ic_cache
-    try:
-        with open(IC_CSV_FILE, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                road = row.get('路線', '').strip()
-                subtable = row.get('子表格區分', '').strip()
-                name = row.get('欄位1', '').strip()
-                km_raw = row.get('欄位2', '').strip()
-                # Skip invalid / aggregate / sub-exit rows
-                if not road or not subtable or not name:
-                    continue
-                if name in ('設施名稱', '交流道數量合計', '路段數量合計'):
-                    continue
-                if name in ('A', 'B', 'C', 'D') or '次出口' in name or '休息站' in name or '服務區' in name:
-                    continue
-                km_str = re.sub(r'[^0-9.]', '', km_raw)
-                if not km_str:
-                    continue
-                try:
-                    km = float(km_str)
-                except ValueError:
-                    continue
-                key = f'{road}|{subtable}'
-                if key not in _ic_cache:
-                    _ic_cache[key] = []
-                _ic_cache[key].append({'name': name, 'km': km})
-    except Exception as e:
-        print(f'IC CSV load error: {e}')
+    _ic_cache = {}  # road_name -> [{name, km}]
+
+    def _load_csv(filepath, encoding='utf-8-sig'):
+        if not os.path.exists(filepath):
+            return
+        try:
+            with open(filepath, 'r', encoding=encoding) as f:
+                reader = csv.DictReader(f)
+                cols = reader.fieldnames or []
+                # Detect column names flexibly
+                col_road = next((c for c in cols if '路線' in c or '路線' in c), cols[0] if cols else '')
+                col_name = next((c for c in cols if '設施' in c or '名稱' in c), cols[1] if len(cols)>1 else '')
+                col_km   = next((c for c in cols if '里程' in c), cols[2] if len(cols)>2 else '')
+                for row in reader:
+                    road = row.get(col_road, '').strip()
+                    name = row.get(col_name, '').strip()
+                    km_raw = row.get(col_km, '').strip()
+                    if not road or not name:
+                        continue
+                    if name in ('A','B','C','D') or '次出口' in name or '休息站' in name or '服務區' in name:
+                        continue
+                    if name in ('設施名稱', '交流道數量合計', '路段數量合計'):
+                        continue
+                    km_str = re.sub(r'[^0-9.]', '', km_raw)
+                    if not km_str:
+                        continue
+                    try:
+                        km = float(km_str)
+                    except ValueError:
+                        continue
+                    if road not in _ic_cache:
+                        _ic_cache[road] = []
+                    _ic_cache[road].append({'name': name, 'km': km})
+        except Exception as e:
+            print(f'IC CSV load error ({filepath}): {e}')
+
+    _load_csv(IC_CSV_FILE)
+    _load_csv(EXPR_CSV_FILE)
     return _ic_cache
 
 

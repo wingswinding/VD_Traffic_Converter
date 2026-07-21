@@ -371,8 +371,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Helper: auto-save linksTextarea content to server file (target_links.txt)
+  async function saveLinksSilently() {
+    const rawText = linksTextarea.value;
+    const links = rawText.split('\n').map(x => x.trim()).filter(x => x);
+    try {
+      await fetch('/api/save_links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ links: links })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   // Helper: move a LinkID up or down within linksTextarea and re-render
-  function reorderLink(linkId, direction) {
+  async function reorderLink(linkId, direction) {
     const lines = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x);
     const idx = lines.indexOf(linkId);
     if (idx === -1) return;
@@ -384,7 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return; // already at boundary, no change
     }
     linksTextarea.value = lines.join('\n');
-    loadLinkMetadata();
+    await saveLinksSilently();
+    await loadLinkMetadata();
   }
 
   async function loadLinkMetadata() {
@@ -428,11 +444,12 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => reorderLink(btn.dataset.linkid, 'down'));
       });
       linksMetadataBody.querySelectorAll('.btn-row-delete').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           const lid = btn.dataset.linkid;
           const lines = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x && x !== lid);
           linksTextarea.value = lines.join('\n');
-          loadLinkMetadata();
+          await saveLinksSilently();
+          await loadLinkMetadata();
         });
       });
     } catch (err) {
@@ -459,9 +476,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('clearLinksBtn').addEventListener('click', () => {
+  document.getElementById('clearLinksBtn').addEventListener('click', async () => {
     if (confirm('確定要清空所有分析路段嗎？')) {
       linksTextarea.value = '';
+      await saveLinksSilently();
+      await loadLinkMetadata();
     }
   });
 
@@ -616,13 +635,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Append checked to textarea
-  document.getElementById('browseAddBtn').addEventListener('click', () => {
+  document.getElementById('browseAddBtn').addEventListener('click', async () => {
     const checked = [...document.querySelectorAll('.browse-check:checked')].map(cb => cb.dataset.linkid);
     if (checked.length === 0) { alert('請至少勾選一筆路段'); return; }
     const existing = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x);
     const combined = [...new Set([...existing, ...checked])];
     linksTextarea.value = combined.join('\n');
-    loadLinkMetadata();
+    await saveLinksSilently();
+    await loadLinkMetadata();
     alert(`已追加 ${checked.length} 筆 LinkID（重複自動去除）`);
   });
 
