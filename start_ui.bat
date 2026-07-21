@@ -32,14 +32,24 @@ pause
 exit /b 1
 
 :INSTALL_PACKAGES
-echo [Notice] Installing required packages (requests, urllib3, openpyxl)...
-python -m pip install --user requests urllib3 openpyxl --trusted-host pypi.org --trusted-host files.pythonhosted.org
+echo [Notice] Missing required packages. Attempting automatic installation...
+echo.
+python -m ensurepip --default-pip >nul 2>nul
+python -m pip install requests urllib3 openpyxl --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.python.org
+echo.
+python -c "import requests, urllib3, openpyxl" >nul 2>nul
+if %errorlevel% equ 0 goto START_SERVER
+
+echo [Warning] Trying alternative user installation...
+python -m pip install --user -r requirements.txt --trusted-host pypi.org --trusted-host files.pythonhosted.org
 python -c "import requests, urllib3, openpyxl" >nul 2>nul
 if %errorlevel% equ 0 goto START_SERVER
 goto FAIL_PACKAGES
 
 :FAIL_PACKAGES
-echo [Error] Failed to install packages. Please check internet connection.
+echo.
+echo [Error] Failed to install packages automatically.
+echo [Action] Please open CMD and run: pip install requests urllib3 openpyxl
 pause
 exit /b 1
 
