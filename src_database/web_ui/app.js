@@ -209,11 +209,25 @@ document.addEventListener('DOMContentLoaded', () => {
       statSubLinks.textContent = `主線 ${data.mainline_count} 筆 | 匝道 ${data.ramp_count} 筆`;
       statMaxVC.textContent = data.max_vc.toFixed(2);
       statMaxVCSeg.textContent = data.max_vc_seg;
-      statWorstLOS.textContent = data.worst_los;
+      // Update KPI Cards & 24hr Full-Day Cards
+      const cardAdt = document.getElementById('cardAdt');
+      const cardKFactor = document.getElementById('cardKFactor');
+      const cardCongestedHours = document.getElementById('cardCongestedHours');
+      const btnView24h = document.getElementById('btnView24h');
 
-      // Update Download Link
-      statLatestReportLink.textContent = `${data.report_name} ⬇️`;
-      statLatestReportLink.href = `/api/download?file=${encodeURIComponent(data.report_name)}`;
+      if (data.has_24h && data.full_day_kpis) {
+        cardAdt.classList.remove('hidden');
+        cardKFactor.classList.remove('hidden');
+        cardCongestedHours.classList.remove('hidden');
+        document.getElementById('statAdt').textContent = `${(data.full_day_kpis.adt_pcu || 0).toLocaleString()} PCU`;
+        document.getElementById('statKFactor').textContent = `${(data.full_day_kpis.k_factor || 0).toFixed(1)} %`;
+        document.getElementById('statCongestedHours').textContent = `${data.full_day_kpis.max_congested_hours || 0} 小時`;
+        if (btnView24h) btnView24h.style.display = 'inline-block';
+      } else {
+        cardAdt.classList.add('hidden');
+        cardKFactor.classList.add('hidden');
+        cardCongestedHours.classList.add('hidden');
+      }
 
       // Update Highway Filter Options (Removed 流域/)
       if (data.highways && data.highways.length > 0) {
@@ -227,6 +241,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderDashboardView();
+      if (data.has_24h) {
+        populateSegmentSelect(data.data);
+        renderHeatmapMatrix(data);
+        renderDiurnalChart(data);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -374,6 +393,189 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       tbody.appendChild(tr);
     });
+  }
+
+  // 8. View Switcher Sub-nav Tabs Event Listeners
+  const viewTabBtns = document.querySelectorAll('.view-tab-btn');
+  const peakViewSection = document.getElementById('peakViewSection');
+  const fullday24hSection = document.getElementById('fullday24hSection');
+  const fulldaySegmentSelect = document.getElementById('fulldaySegmentSelect');
+  let diurnalChart = null;
+
+  viewTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewTabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const view = btn.dataset.view;
+      if (view === 'fullday24h') {
+        peakViewSection.classList.add('hidden');
+        fullday24hSection.classList.remove('hidden');
+        if (rawAnalysisResults) {
+          renderHeatmapMatrix(rawAnalysisResults);
+          renderDiurnalChart(rawAnalysisResults);
+        }
+      } else {
+        fullday24hSection.classList.add('hidden');
+        peakViewSection.classList.remove('hidden');
+        renderDashboardView();
+      }
+    });
+  });
+
+  if (fulldaySegmentSelect) {
+    fulldaySegmentSelect.addEventListener('change', () => {
+      if (rawAnalysisResults && rawAnalysisResults.has_24h) {
+        renderDiurnalChart(rawAnalysisResults);
+      }
+    });
+  }
+
+  function populateSegmentSelect(items) {
+    if (!fulldaySegmentSelect || !items) return;
+    fulldaySegmentSelect.innerHTML = '<option value="ALL">全路段平均趨勢</option>';
+    items.forEach((item, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = `${item.road_name} ${item.segment} (${item.direction})`;
+      fulldaySegmentSelect.appendChild(opt);
+    });
+  }
+
+  // 9. Render 24-Hour LOS Heatmap Matrix
+  function renderHeatmapMatrix(data) {
+    const head = document.getElementById('heatmapHead');
+    const body = document.getElementById('heatmapBody');
+    if (!head || !body || !data || !data.hours_24h) return;
+
+    head.innerHTML = '';
+    body.innerHTML = '';
+
+    const trH = document.createElement('tr');
+    trH.innerHTML = `<th>編號</th><th>路段範圍</th><th>方向</th><th>容量</th><th>速限</th>` +
+      data.hours_24h.map(h => `<th>${h.substring(0,2)}時</th>`).join('');
+    head.appendChild(trH);
+
+    const filtered = getFilteredResults();
+    filtered.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      let cellsHtml = `<td><span class="type-badge">${idx + 1}</span></td>
+        <td style="text-align:left; font-weight:600;">${r.road_name} ${r.segment}</td>
+        <td>${r.direction}</td>
+        <td>${Math.round(r.capacity).toLocaleString()}</td>
+        <td>${Math.round(r.speed_limit)}</td>`;
+
+      if (r.hourly_series) {
+        r.hourly_series.forEach(hs => {
+          const letter = hs.los ? hs.los[0] : 'A';
+          cellsHtml += `<td class="los-cell-${letter}" title="${hs.hour}: PCU ${hs.pcu}, V/C ${hs.vc}, 速率 ${hs.speed} KPH">${hs.los}</td>`;
+        });
+      } else {
+        cellsHtml += `<td colspan="${data.hours_24h.length}">無分時數據</td>`;
+      }
+
+      tr.innerHTML = cellsHtml;
+      body.appendChild(tr);
+    });
+  }
+
+  // 10. Render 24-Hour Diurnal Time-Series Chart (ECharts Dual Y-axis)
+  function renderDiurnalChart(data) {
+    const chartEl = document.getElementById('diurnalChart');
+    if (!chartEl || !data || !data.hours_24h) return;
+    if (!diurnalChart) diurnalChart = echarts.init(chartEl);
+
+    const hours = data.hours_24h.map(h => `${h.substring(0,2)}:00`);
+    const selIdx = fulldaySegmentSelect ? fulldaySegmentSelect.value : 'ALL';
+
+    let seriesPcu = [];
+    let seriesSpeed = [];
+    let speedLimit = 100;
+    let titleSegment = '全路段平均';
+
+    const filtered = getFilteredResults();
+
+    if (selIdx === 'ALL' || !filtered[selIdx]) {
+      // Average across filtered links
+      const numHours = hours.length;
+      for (let hI = 0; hI < numHours; hI++) {
+        let sumPcu = 0, sumSpd = 0, count = 0;
+        filtered.forEach(item => {
+          if (item.hourly_series && item.hourly_series[hI]) {
+            sumPcu += item.hourly_series[hI].pcu;
+            sumSpd += item.hourly_series[hI].speed;
+            count++;
+          }
+        });
+        seriesPcu.push(count > 0 ? Math.round(sumPcu / count) : 0);
+        seriesSpeed.push(count > 0 ? Math.round((sumSpd / count) * 10) / 10 : 0);
+      }
+    } else {
+      const item = filtered[selIdx];
+      titleSegment = `${item.road_name} ${item.segment} (${item.direction})`;
+      speedLimit = item.speed_limit;
+      if (item.hourly_series) {
+        seriesPcu = item.hourly_series.map(x => x.pcu);
+        seriesSpeed = item.hourly_series.map(x => x.speed);
+      }
+    }
+
+    const diurnalOption = {
+      title: { text: `${titleSegment} — 全日 24 小時流量與速率動態曲線`, textStyle: { color: '#e2e8f0', fontSize: 13 } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      legend: { textStyle: { color: '#94a3b8' } },
+      grid: { left: '3%', right: '4%', bottom: '12%', containLabel: true },
+      dataZoom: [{ type: 'slider', show: true, start: 0, end: 100, textStyle: { color: '#94a3b8' } }],
+      xAxis: {
+        type: 'category',
+        data: hours,
+        axisLabel: { color: '#cbd5e1', fontSize: 11 },
+        axisLine: { lineStyle: { color: '#475569' } }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '交通當量 (PCU/hr)',
+          nameTextStyle: { color: '#38bdf8' },
+          axisLine: { lineStyle: { color: '#38bdf8' } },
+          splitLine: { lineStyle: { color: '#1e293b' } }
+        },
+        {
+          type: 'value',
+          name: '車速 (KPH)',
+          min: 0, max: 120,
+          nameTextStyle: { color: '#34d399' },
+          axisLine: { lineStyle: { color: '#34d399' } },
+          splitLine: { show: false }
+        }
+      ],
+      series: [
+        {
+          name: '小時交通當量 (PCU)',
+          type: 'bar',
+          data: seriesPcu,
+          itemStyle: { color: '#38bdf8' }
+        },
+        {
+          name: '平均行車速率 (KPH)',
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: true,
+          data: seriesSpeed,
+          itemStyle: { color: '#34d399' }
+        },
+        {
+          name: '法定最高速限 (KPH)',
+          type: 'line',
+          yAxisIndex: 1,
+          data: new Array(hours.length).fill(speedLimit),
+          itemStyle: { color: '#ef4444' },
+          lineStyle: { type: 'dashed', width: 2 }
+        }
+      ]
+    };
+
+    diurnalChart.setOption(diurnalOption);
+    diurnalChart.resize();
   }
 
   // 8. Load & Save Links with Metadata Preview

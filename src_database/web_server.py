@@ -225,7 +225,87 @@ def parse_latest_excel_results(requested_date=None):
         
         worst_los_item = max(results, key=lambda x: max(x['m_los'], x['e_los'])) if results else None
         worst_los = max(worst_los_item['m_los'], worst_los_item['e_los']) if worst_los_item else 'A1'
-        
+
+        # Parse 24hr Matrix Sheets if present
+        has_24h = ('24小時流量與車速矩陣' in wb.sheetnames and '24小時LOS對照表' in wb.sheetnames)
+        hours_24h = []
+        full_day_kpis = {}
+
+        if has_24h:
+            ws_m = wb['24小時流量與車速矩陣']
+            ws_los = wb['24小時LOS對照表']
+
+            # Extract hours list from header
+            header_cols = ws_los.max_column
+            for c in range(7, header_cols + 1):
+                h_val = str(ws_los.cell(row=1, column=c).value or '').strip()
+                if h_val:
+                    hours_24h.append(h_val)
+
+            num_hours = len(hours_24h)
+            link_series_map = {}
+
+            for r in range(2, ws_los.max_row + 1):
+                lid = str(ws_los.cell(row=r, column=1).value or '').strip()
+                cap = float(ws_los.cell(row=r, column=5).value or 0)
+                if not lid:
+                    continue
+                
+                series_data = []
+                tot_pcu_24h = 0
+                max_pcu_h = 0
+                congested_h_count = 0
+
+                for idx, h_name in enumerate(hours_24h):
+                    pcu_v = float(ws_m.cell(row=r, column=7 + idx).value or 0)
+                    spd_v = float(ws_m.cell(row=r, column=7 + num_hours + idx).value or 0)
+                    los_v = str(ws_los.cell(row=r, column=7 + idx).value or 'A1').strip()
+                    vc_v = round(pcu_v / cap, 2) if cap > 0 else 0.0
+
+                    tot_pcu_24h += pcu_v
+                    if pcu_v > max_pcu_h:
+                        max_pcu_h = pcu_v
+                    if vc_v >= 1.0 or (los_v and los_v[0] == 'F'):
+                        congested_h_count += 1
+
+                    series_data.append({
+                        "hour": h_name,
+                        "pcu": round(pcu_v),
+                        "speed": round(spd_v, 1),
+                        "vc": vc_v,
+                        "los": los_v
+                    })
+
+                k_factor = round((max_pcu_h / tot_pcu_24h * 100), 1) if tot_pcu_24h > 0 else 0.0
+                link_series_map[lid] = {
+                    "series": series_data,
+                    "tot_pcu_24h": round(tot_pcu_24h),
+                    "k_factor": k_factor,
+                    "congested_h_count": congested_h_count
+                }
+
+            # Attach hourly_series to results by link_id order matching
+            for i, item in enumerate(results):
+                lid = item.get('link_id')
+                if not lid and i < ws_los.max_row - 1:
+                    lid = str(ws_los.cell(row=i + 2, column=1).value or '').strip()
+                if lid in link_series_map:
+                    item['hourly_series'] = link_series_map[lid]['series']
+                    item['adt_pcu'] = link_series_map[lid]['tot_pcu_24h']
+                    item['k_factor'] = link_series_map[lid]['k_factor']
+                    item['congested_h_count'] = link_series_map[lid]['congested_h_count']
+
+            # Global 24h KPIs
+            bottleneck_item = max_vc_item
+            b_lid = bottleneck_item.get('link_id') if bottleneck_item else None
+            b_data = link_series_map.get(b_lid, {}) if b_lid else (list(link_series_map.values())[0] if link_series_map else {})
+
+            full_day_kpis = {
+                "adt_pcu": b_data.get("tot_pcu_24h", sum(x.get("adt_pcu", 0) for x in results)),
+                "k_factor": b_data.get("k_factor", 0.0),
+                "max_congested_hours": max([x.get("congested_h_count", 0) for x in results], default=0)
+            }
+
         return {
             "report_name": filename,
             "total_links": total_links,
@@ -235,6 +315,9 @@ def parse_latest_excel_results(requested_date=None):
             "max_vc_seg": max_vc_seg,
             "worst_los": worst_los,
             "highways": sorted(list(highways)),
+            "has_24h": has_24h,
+            "hours_24h": hours_24h,
+            "full_day_kpis": full_day_kpis,
             "data": results
         }
     except Exception as e:

@@ -527,7 +527,111 @@ def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, targe
             cell.border = border_thin
         row_idx += 1
 
-    # ------------------ Sheets 3+: Raw Hourly Data ------------------
+    # ------------------ Sheets 3 & 4: 24hr Summaries ------------------
+    if len(hours_list) >= 4:
+        # Sheet A: 24小時流量與車速對照表
+        ws_m = wb.create_sheet(title='24小時流量與車速矩陣')
+        ws_m.views.sheetView[0].showGridLines = True
+
+        m_headers = ['LinkID', '道路名稱', '路段/交流道', '方向', '容量(PCPH)', '速限(KPH)']
+        for h_name in hours_list:
+            m_headers.append(f"{h_name}\n流量(PCU)")
+        for h_name in hours_list:
+            m_headers.append(f"{h_name}\n速率(KPH)")
+
+        for col_i, h_t in enumerate(m_headers, 1):
+            cell = ws_m.cell(row=1, column=col_i, value=h_t)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = align_center
+            cell.border = border_thin
+
+        row_i = 2
+        for r in (mainline_rows + ramp_rows):
+            lid = r['link_id']
+            seg_or_ic = r.get('segment') or r.get('interchange')
+            ws_m.cell(row=row_i, column=1, value=lid).alignment = align_center
+            ws_m.cell(row=row_i, column=2, value=r['road_name']).alignment = align_center
+            ws_m.cell(row=row_i, column=3, value=seg_or_ic).alignment = align_left
+            ws_m.cell(row=row_i, column=4, value=r['direction']).alignment = align_center
+            ws_m.cell(row=row_i, column=5, value=round(r['capacity'])).number_format = '#,##0'
+            ws_m.cell(row=row_i, column=6, value=round(r['speed_limit'])).number_format = '0'
+
+            # Fill PCU columns
+            col_offset = 7
+            for idx, h_name in enumerate(hours_list):
+                d = hourly_data[h_name][lid]
+                pcu_val = round(d['S'] * pce_s + d['L'] * pce_l + d['T'] * pce_t)
+                c_cell = ws_m.cell(row=row_i, column=col_offset + idx, value=pcu_val)
+                c_cell.number_format = '#,##0'
+
+            # Fill Speed columns
+            col_offset_spd = col_offset + len(hours_list)
+            for idx, h_name in enumerate(hours_list):
+                d = hourly_data[h_name][lid]
+                spd_val = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
+                c_cell = ws_m.cell(row=row_i, column=col_offset_spd + idx, value=spd_val)
+                c_cell.number_format = '0.0'
+
+            for c in range(1, len(m_headers) + 1):
+                ws_m.cell(row=row_i, column=c).font = data_font
+                ws_m.cell(row=row_i, column=c).border = border_thin
+            row_i += 1
+
+        # Sheet B: 24小時LOS對照表
+        ws_los = wb.create_sheet(title='24小時LOS對照表')
+        ws_los.views.sheetView[0].showGridLines = True
+
+        los_headers = ['LinkID', '道路名稱', '路段/交流道', '方向', '容量(PCPH)', '速限(KPH)'] + hours_list
+        for col_i, h_t in enumerate(los_headers, 1):
+            cell = ws_los.cell(row=1, column=col_i, value=h_t)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = align_center
+            cell.border = border_thin
+
+        los_fills = {
+            'A': PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid"),
+            'B': PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid"),
+            'C': PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid"),
+            'D': PatternFill(start_color="FFEDD5", end_color="FFEDD5", fill_type="solid"),
+            'E': PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid"),
+            'F': PatternFill(start_color="F3E8FF", end_color="F3E8FF", fill_type="solid"),
+        }
+
+        row_i = 2
+        for r in (mainline_rows + ramp_rows):
+            lid = r['link_id']
+            cap = r['capacity']
+            limit = r['speed_limit']
+            seg_or_ic = r.get('segment') or r.get('interchange')
+
+            ws_los.cell(row=row_i, column=1, value=lid).alignment = align_center
+            ws_los.cell(row=row_i, column=2, value=r['road_name']).alignment = align_center
+            ws_los.cell(row=row_i, column=3, value=seg_or_ic).alignment = align_left
+            ws_los.cell(row=row_i, column=4, value=r['direction']).alignment = align_center
+            ws_los.cell(row=row_i, column=5, value=round(cap)).number_format = '#,##0'
+            ws_los.cell(row=row_i, column=6, value=round(limit)).number_format = '0'
+
+            for idx, h_name in enumerate(hours_list):
+                d = hourly_data[h_name][lid]
+                pcu_val = d['S'] * pce_s + d['L'] * pce_l + d['T'] * pce_t
+                spd_val = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
+                vc_val = pcu_val / cap if cap > 0 else 0
+                los_code = calculate_los(vc_val, spd_val, limit)
+
+                l_cell = ws_los.cell(row=row_i, column=7 + idx, value=los_code)
+                l_cell.alignment = align_center
+                letter = los_code[0] if los_code else 'A'
+                if letter in los_fills:
+                    l_cell.fill = los_fills[letter]
+
+            for c in range(1, len(los_headers) + 1):
+                ws_los.cell(row=row_i, column=c).font = data_font
+                ws_los.cell(row=row_i, column=c).border = border_thin
+            row_i += 1
+
+    # ------------------ Sheets 5+: Raw Hourly Data ------------------
     raw_headers = [
         '偵測器代碼 (VDID)', '路段代碼 (LinkID)', 
         '小客車數量 (S)', '小客車速率 (KPH)',
@@ -688,6 +792,7 @@ def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l
             e_vc = e_pcu / cap if cap > 0 else 0
             
             mainline_rows.append({
+                'link_id': lid,
                 'road_name': info['road_name'],
                 'segment': seg_name,
                 'direction': info['road_dir'],
@@ -708,6 +813,7 @@ def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l
             e_vc = e_pcu / cap if cap > 0 else 0
             
             ramp_rows.append({
+                'link_id': lid,
                 'road_name': info['road_name'],
                 'interchange': ic_name,
                 'direction': direction,

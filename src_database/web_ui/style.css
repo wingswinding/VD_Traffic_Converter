@@ -849,7 +849,81 @@ input:focus, select:focus, textarea:focus {
 
 .color-warning { color: var(--warning); }
 .color-danger { color: var(--danger); }
+.color-info { color: #38bdf8; }
 .text-sm { font-size: 1rem; }
 .hidden { display: none !important; }
 .margin-top { margin-top: 24px; }
 .margin-bottom { margin-bottom: 24px; }
+
+/* View Switcher Sub-nav Tabs */
+.view-mode-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.view-tab-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: rgba(11, 15, 25, 0.6);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.view-tab-btn.active {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(79, 172, 254, 0.2));
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+
+/* Heatmap Table & Badges */
+.heatmap-legend {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.heatmap-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-a { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-c { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+.badge-e { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+.badge-f { background: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+
+.heatmap-table td {
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.heatmap-table th {
+  padding: 10px 6px;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.los-cell-A { background: rgba(16, 185, 129, 0.25) !important; color: #6ee7b7 !important; }
+.los-cell-B { background: rgba(56, 189, 248, 0.25) !important; color: #7dd3fc !important; }
+.los-cell-C { background: rgba(245, 158, 11, 0.25) !important; color: #fde047 !important; }
+.los-cell-D { background: rgba(249, 115, 22, 0.25) !important; color: #fdba74 !important; }
+.los-cell-E { background: rgba(239, 68, 68, 0.3) !important; color: #fca5a5 !important; }
+.los-cell-F { background: rgba(168, 85, 247, 0.35) !important; color: #e9d5ff !important; font-weight: 800 !important; }
+

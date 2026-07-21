@@ -134,81 +134,146 @@
           </div>
           <div class="metric-sub">點擊即可直接下載 Excel 檔</div>
         </div>
+        <!-- Full-Day Extra KPI Cards -->
+        <div class="metric-card fullday-kpi-card hidden" id="cardAdt">
+          <div class="metric-title">全日瓶頸路段總車流 (ADT)</div>
+          <div class="metric-value color-info" id="statAdt">-- PCU</div>
+          <div class="metric-sub">全天 24 小時當量總合</div>
+        </div>
+        <div class="metric-card fullday-kpi-card hidden" id="cardKFactor">
+          <div class="metric-title">尖峰小時率 (K Factor)</div>
+          <div class="metric-value color-warning" id="statKFactor">-- %</div>
+          <div class="metric-sub">極值小時 / 24小時總量</div>
+        </div>
+        <div class="metric-card fullday-kpi-card hidden" id="cardCongestedHours">
+          <div class="metric-title">全日壅塞持續總時數</div>
+          <div class="metric-value color-danger" id="statCongestedHours">-- 小時</div>
+          <div class="metric-sub">全天 V/C ≥ 1.0 (LOS F) 數</div>
+        </div>
       </div>
 
-      <!-- 1. Full Table Section (先表後圖：表格置頂) -->
-      <div class="los-card-section margin-bottom">
-        <div class="section-filter-header">
-          <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
-          
-          <div class="filter-controls">
-            <!-- Highway Filter (Removed 流域/) -->
-            <select id="filterHighway">
-              <option value="ALL">🛣️ 國道路線選單 (全選)</option>
-              <option value="國道2號">國道2號</option>
-            </select>
+      <!-- View Switcher Sub-nav Tabs -->
+      <div class="view-mode-tabs" id="viewModeTabs">
+        <button class="view-tab-btn active" data-view="peak">📊 晨昏峰極值總覽</button>
+        <button class="view-tab-btn" data-view="fullday24h" id="btnView24h">⏱️ 24小時連續動態視圖</button>
+      </div>
 
-            <!-- Type Filter -->
-            <select id="filterType">
-              <option value="ALL">📂 全路段型態 (主線+匝道)</option>
-              <option value="主線">主線 (22筆)</option>
-              <option value="匝道">匝道 (2筆)</option>
-            </select>
+      <!-- VIEW A: Standard Peak Summary View -->
+      <div id="peakViewSection">
+        <!-- 1. Full Table Section (先表後圖：表格置頂) -->
+        <div class="los-card-section margin-bottom">
+          <div class="section-filter-header">
+            <h3>🚦 國道主線與匝道 雙碼服務水準 (A1~F6) 綜合狀態表</h3>
+            
+            <div class="filter-controls">
+              <!-- Highway Filter (Removed 流域/) -->
+              <select id="filterHighway">
+                <option value="ALL">🛣️ 國道路線選單 (全選)</option>
+                <option value="國道2號">國道2號</option>
+              </select>
 
-            <!-- Direction Filter -->
-            <select id="filterDir">
-              <option value="ALL">🧭 全行車方向</option>
-              <option value="往東">往東 (E)</option>
-              <option value="往西">往西 (W)</option>
-            </select>
+              <!-- Type Filter -->
+              <select id="filterType">
+                <option value="ALL">📂 全路段型態 (主線+匝道)</option>
+                <option value="主線">主線 (22筆)</option>
+                <option value="匝道">匝道 (2筆)</option>
+              </select>
 
-            <!-- Search Box -->
-            <input type="text" id="filterKeyword" placeholder="🔍 關鍵字搜尋路段名稱..." style="width: 200px;">
+              <!-- Direction Filter -->
+              <select id="filterDir">
+                <option value="ALL">🧭 全行車方向</option>
+                <option value="往東">往東 (E)</option>
+                <option value="往西">往西 (W)</option>
+              </select>
+
+              <!-- Search Box -->
+              <input type="text" id="filterKeyword" placeholder="🔍 關鍵字搜尋路段名稱..." style="width: 200px;">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>編號/分類</th>
+                  <th>道路名稱 / 路段範圍</th>
+                  <th>方向</th>
+                  <th>容量 (PCPH)</th>
+                  <th>速限 (KPH)</th>
+                  <th>晨峰流量</th>
+                  <th>晨峰 V/C</th>
+                  <th>晨峰速率</th>
+                  <th>晨峰 LOS</th>
+                  <th>昏峰流量</th>
+                  <th>昏峰 V/C</th>
+                  <th>昏峰速率</th>
+                  <th>昏峰 LOS</th>
+                </tr>
+              </thead>
+              <tbody id="losTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>編號/分類</th>
-                <th>道路名稱 / 路段範圍</th>
-                <th>方向</th>
-                <th>容量 (PCPH)</th>
-                <th>速限 (KPH)</th>
-                <th>晨峰流量</th>
-                <th>晨峰 V/C</th>
-                <th>晨峰速率</th>
-                <th>晨峰 LOS</th>
-                <th>昏峰流量</th>
-                <th>昏峰 V/C</th>
-                <th>昏峰速率</th>
-                <th>昏峰 LOS</th>
-              </tr>
-            </thead>
-            <tbody id="losTableBody">
-              <!-- Dynamically populated -->
-            </tbody>
-          </table>
+        <!-- 2. Full-Width Banner 1: V/C Chart -->
+        <div class="chart-banner-card margin-bottom">
+          <div class="banner-header">
+            <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
+            <span class="chart-tip">💡 動態 Y 軸上限（最高 V/C + 0.20）| 拖動 slider 縮放滑塊</span>
+          </div>
+          <div id="vcChart" class="chart-box-banner"></div>
+        </div>
+
+        <!-- 3. Full-Width Banner 2: Speed Chart -->
+        <div class="chart-banner-card margin-bottom">
+          <div class="banner-header">
+            <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
+            <span class="chart-tip">💡 虛線表示該路段法定最高速限</span>
+          </div>
+          <div id="speedChart" class="chart-box-banner"></div>
         </div>
       </div>
 
-      <!-- 2. Full-Width Banner 1: V/C Chart -->
-      <div class="chart-banner-card margin-bottom">
-        <div class="banner-header">
-          <h3>📈 主線與匝道路段 晨昏峰 V/C 容量比值對比圖 (全寬 100%)</h3>
-          <span class="chart-tip">💡 動態 Y 軸上限（最高 V/C + 0.20）| 拖動 slider 縮放滑塊</span>
+      <!-- VIEW B: Full-Day 24-Hour Continuous Dynamic View -->
+      <div id="fullday24hSection" class="hidden">
+        <!-- 1. 24-Hour LOS Heatmap Matrix -->
+        <div class="los-card-section margin-bottom">
+          <div class="section-filter-header">
+            <h3>🚦 全日 24 小時路段服務水準演變熱圖矩陣 (24-Hour LOS Heatmap Matrix)</h3>
+            <div class="heatmap-legend">
+              <span class="heatmap-badge badge-a">LOS A/B (順暢)</span>
+              <span class="heatmap-badge badge-c">LOS C/D (稍擠)</span>
+              <span class="heatmap-badge badge-e">LOS E (壅塞)</span>
+              <span class="heatmap-badge badge-f">LOS F (嚴重壅塞)</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table heatmap-table">
+              <thead id="heatmapHead">
+                <!-- Dynamically populated hours -->
+              </thead>
+              <tbody id="heatmapBody">
+                <!-- Dynamically populated link rows -->
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div id="vcChart" class="chart-box-banner"></div>
-      </div>
 
-      <!-- 3. Full-Width Banner 2: Speed Chart -->
-      <div class="chart-banner-card margin-bottom">
-        <div class="banner-header">
-          <h3>🚗 主線與匝道路段 晨昏峰 旅行車速 (KPH) 與速限對比圖 (全寬 100%)</h3>
-          <span class="chart-tip">💡 虛線表示該路段法定最高速限</span>
+        <!-- 2. 24-Hour Diurnal Time-Series Chart -->
+        <div class="chart-banner-card margin-bottom">
+          <div class="banner-header">
+            <h3>📈 全日 24 小時連續時序動態趨勢圖 (24-Hour Diurnal Continuous Curve)</h3>
+            <div class="filter-controls">
+              <label for="fulldaySegmentSelect" style="font-size: 0.85rem; color: #94a3b8;">選擇觀察路段：</label>
+              <select id="fulldaySegmentSelect" style="width: 250px;">
+                <option value="ALL">全路段平均趨勢</option>
+              </select>
+            </div>
+          </div>
+          <div id="diurnalChart" class="chart-box-banner"></div>
         </div>
-        <div id="speedChart" class="chart-box-banner"></div>
       </div>
     </main>
 
