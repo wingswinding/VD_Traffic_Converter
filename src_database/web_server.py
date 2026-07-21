@@ -560,7 +560,10 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
-        if path == '/api/latest_results':
+        if path == '/favicon.ico':
+            self.send_response(204)
+            self.end_headers()
+        elif path == '/api/latest_results':
             req_date = query.get('date', [''])[0]
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
