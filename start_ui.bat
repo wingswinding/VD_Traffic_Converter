@@ -10,17 +10,28 @@ echo.
 :: 1. 檢查是否有安裝 Python
 where python >nul 2>nul
 if %errorlevel% neq 0 (
+    echo [訊息] 檢測到系統尚未安裝 Python 環境！
+    echo [動作] 啟動 Windows 套件管理器 (winget) 自動下載並安裝 Python 3.11 中...
     echo.
-    echo 【嚴重錯誤】系統中找不到 Python 環境！
-    echo ----------------------------------------------------
-    echo 請依以下步驟安裝 Python：
-    echo 1. 造訪官方網站下載 Python: https://www.python.org/downloads/
-    echo 2. 安裝時務必勾選「Add python.exe to PATH」（將 Python 加入環境變數）
-    echo 3. 安裝完成後，請重新開啟此批次檔 start_ui.bat。
-    echo ----------------------------------------------------
+    winget install --id Python.Python.3.11 --exact --source winget --accept-package-agreements --accept-source-agreements
+    
+    :: 更新當前 Session PATH
+    set "PATH=%LocalAppData%\Programs\Python\Python311;%LocalAppData%\Programs\Python\Python311\Scripts;%PATH%"
+    
+    where python >nul 2>nul
+    if %errorlevel% neq 0 (
+        echo.
+        echo ----------------------------------------------------
+        echo 【注意】自動安裝 Python 完成後，請重新關閉此視窗並再次點擊 start_ui.bat。
+        echo 若未安裝成功，請造訪 https://www.python.org/downloads/ 下載安裝，
+        echo 且安裝時務必勾選「Add python.exe to PATH」。
+        echo ----------------------------------------------------
+        echo.
+        pause
+        exit /b 1
+    )
+    echo [成功] Python 3.11 自動安裝完成！
     echo.
-    pause
-    exit /b 1
 )
 
 :: 2. 檢查並自動安裝必要 Python 套件
@@ -37,7 +48,7 @@ if %errorlevel% neq 0 (
         pause
         exit /b 1
     )
-    echo [成功] 所有必要套件安裝完成！
+    echo [成功] 所有必要套件自動安裝完成！
 ) else (
     echo [成功] 必要套件已完全就緒！
 )

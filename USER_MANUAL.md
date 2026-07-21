@@ -37,12 +37,13 @@
 
 ## 2. 快速開始與環境啟動
 
-### 📋 系統前置需求 (Prerequisites)
-1. **Python 執行環境**：電腦需安裝 **Python 3.8 ~ 3.12** 版本。
-   * 下載位址：[Python 官方網站](https://www.python.org/downloads/)
-   * ⚠️ **安裝重要叮嚀**：安裝 Python 時，畫面最下方**務必勾選 `Add python.exe to PATH`**（將 Python 新增至系統環境變數），否則批次檔無法呼叫 Python。
-2. **必要 Python 套件**：系統需要 `requests`, `urllib3`, `openpyxl` 三個第三方套件。
-   * 💡 **自動安裝機制**：最新版 **`start_ui.bat`** 具備自動檢測功能，若首次執行發現缺少套件，將自動執行 `pip install -r requirements.txt` 為您完成安裝！
+### 📋 系統前置需求與一鍵自動安裝 (Auto Setup)
+1. **Python 執行環境與依賴套件（一鍵全自動偵測安裝）**：
+   * 💡 **完全自動化機制**：最新版 **`start_ui.bat`** 具備強大自動偵測與安裝功能！
+     * 若他人電腦完全沒有 Python，`start_ui.bat` 會自動喚起 Windows 套件管理器 (`winget`) 完成 Python 3.11 的靜默下載與環境變數設定。
+     * 若缺少 `requests`, `urllib3`, `openpyxl` 套件，亦會自動執行 `pip install -r requirements.txt` 完成全自動安裝！
+2. **手動備用方式** (若網路有限制無法使用 winget)：
+   * 可造訪 [Python 官方網站](https://www.python.org/downloads/) 下載安裝檔，安裝時畫面最下方**務必勾選 `Add python.exe to PATH`**。
 
 ---
 
