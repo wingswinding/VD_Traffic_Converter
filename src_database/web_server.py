@@ -124,6 +124,17 @@ def get_file_timestamp_key(filepath):
         return (digits, mtime)
     return ("000000000000", mtime)
 
+def los_rank(code):
+    """Return a comparable integer rank for LOS double-code (A1~F6). Higher = worse."""
+    if not code or len(code) < 2:
+        return 0
+    letter_rank = max(0, ord(code[0].upper()) - ord('A'))  # A=0, F=5
+    try:
+        num_rank = int(code[1])  # 1~6
+    except ValueError:
+        num_rank = 0
+    return letter_rank * 10 + num_rank
+
 def parse_latest_excel_results(requested_date=None):
     if not os.path.exists(OUTPUT_DIR):
         return None
@@ -169,7 +180,10 @@ def parse_latest_excel_results(requested_date=None):
                 
                 if road_name and segment:
                     highways.add(road_name)
+                    # Col 14 = hidden link_id written by generate_traffic_report.py
+                    link_id_val = str(ws.cell(row=r, column=14).value or '').strip()
                     results.append({
+                        "link_id": link_id_val,
                         "road_name": road_name,
                         "segment": segment,
                         "direction": direction,
@@ -204,7 +218,10 @@ def parse_latest_excel_results(requested_date=None):
                 
                 if road_name and ic_name:
                     highways.add(road_name)
+                    # Col 16 = hidden link_id written by generate_traffic_report.py
+                    link_id_val = str(ws.cell(row=r, column=16).value or '').strip()
                     results.append({
+                        "link_id": link_id_val,
                         "road_name": road_name,
                         "segment": f"{ic_name} ({in_out}-{dest})",
                         "direction": direction,
@@ -223,8 +240,9 @@ def parse_latest_excel_results(requested_date=None):
         max_vc = max(max_vc_item['m_vc'], max_vc_item['e_vc']) if max_vc_item else 0
         max_vc_seg = f"{max_vc_item['segment']} ({max_vc_item['direction']})" if max_vc_item else ''
         
-        worst_los_item = max(results, key=lambda x: max(x['m_los'], x['e_los'])) if results else None
-        worst_los = max(worst_los_item['m_los'], worst_los_item['e_los']) if worst_los_item else 'A1'
+        # Use proper LOS rank comparator (A1=10 < F6=66) instead of string sort
+        worst_los_item = max(results, key=lambda x: max(los_rank(x['m_los']), los_rank(x['e_los']))) if results else None
+        worst_los = max(worst_los_item['m_los'], worst_los_item['e_los'], key=los_rank) if worst_los_item else 'A1'
 
         # Parse 24hr Matrix Sheets if present
         has_24h = ('24小時流量與車速矩陣' in wb.sheetnames and '24小時LOS對照表' in wb.sheetnames)

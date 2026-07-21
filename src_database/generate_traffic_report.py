@@ -154,7 +154,7 @@ def download_vd_data(date_str, hours):
             
             downloaded += 1
             if downloaded % 20 == 0 or downloaded == total_files:
-                prog_pct = 10 + int((downloaded / total_files) * 35) # 10% to 45%
+                prog_pct = 10 + int((downloaded / max(total_files, 1)) * 35) # 10% to 45%
                 report_progress(prog_pct, f"Downloading XML files ({downloaded}/{total_files})...")
                 
     return date_dir
@@ -458,6 +458,8 @@ def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, targe
         ws_main.cell(row=row_idx, column=11, value=row['e_vc']).number_format = '0.00'
         ws_main.cell(row=row_idx, column=12, value=row['e_speed']).number_format = '0.0'
         ws_main.cell(row=row_idx, column=13, value=row['e_los']).alignment = align_center
+        # Hidden helper column for link_id (used by web_server for 24hr series matching)
+        ws_main.cell(row=row_idx, column=14, value=row['link_id'])
         
         for c in range(1, 14):
             cell = ws_main.cell(row=row_idx, column=c)
@@ -520,6 +522,8 @@ def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, targe
         ws_ramp.cell(row=row_idx, column=13, value=row['e_vc']).number_format = '0.00'
         ws_ramp.cell(row=row_idx, column=14, value=row['e_speed']).number_format = '0.0'
         ws_ramp.cell(row=row_idx, column=15, value=row['e_los']).alignment = align_center
+        # Hidden helper column for link_id (used by web_server for 24hr series matching)
+        ws_ramp.cell(row=row_idx, column=16, value=row['link_id'])
         
         for c in range(1, 16):
             cell = ws_ramp.cell(row=row_idx, column=c)
@@ -527,8 +531,8 @@ def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, targe
             cell.border = border_thin
         row_idx += 1
 
-    # ------------------ Sheets 3 & 4: 24hr Summaries ------------------
-    if len(hours_list) >= 4:
+    # ------------------ Sheets 3 & 4: 24hr Summaries (only for >= 12hr analyses) ------------------
+    if len(hours_list) >= 12:
         # Sheet A: 24小時流量與車速對照表
         ws_m = wb.create_sheet(title='24小時流量與車速矩陣')
         ws_m.views.sheetView[0].showGridLines = True

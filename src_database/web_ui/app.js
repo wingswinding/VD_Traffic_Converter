@@ -259,10 +259,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Filter Event Listeners
+  // Filter Event Listeners — update both peak view and 24hr view when filters change
   [filterHighway, filterType, filterDir, filterKeyword].forEach(el => {
-    el.addEventListener('input', renderDashboardView);
-    el.addEventListener('change', renderDashboardView);
+    el.addEventListener('input', () => {
+      renderDashboardView();
+      if (rawAnalysisResults?.has_24h && fullday24hSection && !fullday24hSection.classList.contains('hidden')) {
+        renderHeatmapMatrix(rawAnalysisResults);
+        renderDiurnalChart(rawAnalysisResults);
+      }
+    });
+    el.addEventListener('change', () => {
+      renderDashboardView();
+      if (rawAnalysisResults?.has_24h && fullday24hSection && !fullday24hSection.classList.contains('hidden')) {
+        renderHeatmapMatrix(rawAnalysisResults);
+        renderDiurnalChart(rawAnalysisResults);
+      }
+    });
   });
 
   function getFilteredResults() {
@@ -418,7 +430,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (view === 'fullday24h') {
         peakViewSection.classList.add('hidden');
         fullday24hSection.classList.remove('hidden');
-        if (rawAnalysisResults) {
+        if (rawAnalysisResults && rawAnalysisResults.has_24h) {
+          populateSegmentSelect(rawAnalysisResults.data);  // re-sync select on every switch
           renderHeatmapMatrix(rawAnalysisResults);
           renderDiurnalChart(rawAnalysisResults);
         }
@@ -440,13 +453,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function populateSegmentSelect(items) {
     if (!fulldaySegmentSelect || !items) return;
+    // Store current selection so we can restore it after repopulating
+    const prevVal = fulldaySegmentSelect.value;
     fulldaySegmentSelect.innerHTML = '<option value="ALL">全路段平均趨勢</option>';
-    items.forEach((item, idx) => {
+    items.forEach((item) => {
       const opt = document.createElement('option');
-      opt.value = idx;
+      // Use link_id as unique key; fall back to segment name
+      opt.value = item.link_id || item.segment;
       opt.textContent = `${item.road_name} ${item.segment} (${item.direction})`;
       fulldaySegmentSelect.appendChild(opt);
     });
+    // Restore previous selection if it still exists in the new list
+    if (prevVal && [...fulldaySegmentSelect.options].some(o => o.value === prevVal)) {
+      fulldaySegmentSelect.value = prevVal;
+    }
   }
 
   // 9. Render 24-Hour LOS Heatmap Matrix
@@ -493,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!diurnalChart) diurnalChart = echarts.init(chartEl);
 
     const hours = data.hours_24h.map(h => `${h.substring(0,2)}:00`);
-    const selIdx = fulldaySegmentSelect ? fulldaySegmentSelect.value : 'ALL';
+    const selVal = fulldaySegmentSelect ? fulldaySegmentSelect.value : 'ALL';
 
     let seriesPcu = [];
     let seriesSpeed = [];
@@ -502,8 +522,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const filtered = getFilteredResults();
 
-    if (selIdx === 'ALL' || !filtered[selIdx]) {
-      // Average across filtered links
+    // Find item by link_id (or segment name as fallback)
+    const selectedItem = selVal === 'ALL' ? null : filtered.find(x => (x.link_id || x.segment) === selVal);
+
+    if (!selectedItem) {
+      // Average across all filtered links
       const numHours = hours.length;
       for (let hI = 0; hI < numHours; hI++) {
         let sumPcu = 0, sumSpd = 0, count = 0;
@@ -518,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         seriesSpeed.push(count > 0 ? Math.round((sumSpd / count) * 10) / 10 : 0);
       }
     } else {
-      const item = filtered[selIdx];
+      const item = selectedItem;
       titleSegment = `${item.road_name} ${item.segment} (${item.direction})`;
       speedLimit = item.speed_limit;
       if (item.hourly_series) {
@@ -959,10 +982,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Window Resize for ECharts
+  // Window Resize for ECharts (includes diurnalChart)
   window.addEventListener('resize', () => {
     if (vcChart) vcChart.resize();
     if (speedChart) speedChart.resize();
+    if (diurnalChart) diurnalChart.resize();
   });
 
   // Initial Load Trigger
