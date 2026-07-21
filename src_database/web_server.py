@@ -436,6 +436,12 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_UI_DIR, **kwargs)
 
+    def handle(self):
+        try:
+            super().handle()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, socket.error):
+            pass  # Suppress harmless client socket disconnects (e.g. browser refresh/tab close)
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -597,10 +603,18 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "success"}, ensure_ascii=False).encode('utf-8'))
 
+class QuietHTTPServer(HTTPServer):
+    """HTTPServer subclass that suppresses harmless socket disconnect tracebacks."""
+    def handle_error(self, request, client_address):
+        exctype, value = sys.exc_info()[:2]
+        if issubclass(exctype, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, socket.error)):
+            return
+        super().handle_error(request, client_address)
+
 def run_server(port=8000):
     os.makedirs(WEB_UI_DIR, exist_ok=True)
     server_address = ('', port)
-    httpd = HTTPServer(server_address, VDRequestHandler)
+    httpd = QuietHTTPServer(server_address, VDRequestHandler)
     print(f"==================================================")
     print(f"VD Traffic Report Web UI Server Started!")
     print(f"Please open browser at: http://localhost:{port}")
