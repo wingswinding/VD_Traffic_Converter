@@ -70,7 +70,7 @@ current_run = {
     "logs": []
 }
 
-def run_analysis_thread(date_str, mode, custom_hours, pce_s=1.0, pce_l=1.5, pce_t=2.0):
+def run_analysis_thread(date_str, mode, custom_hours, pce_s=1.0, pce_l=1.8, pce_t=2.5):
     global current_run
     with state_lock:
         current_run["status"] = "running"
@@ -118,9 +118,9 @@ def parse_latest_excel_results(requested_date=None):
         
     target_file = None
     if requested_date:
-        candidate = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{requested_date}.xlsx")
-        if os.path.exists(candidate):
-            target_file = candidate
+        candidates = sorted(glob.glob(os.path.join(OUTPUT_DIR, f"VD_traffic_report_{requested_date}*.xlsx")), key=os.path.getmtime, reverse=True)
+        if candidates:
+            target_file = candidates[0]
             
     if not target_file:
         files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=os.path.getmtime, reverse=True)
@@ -575,8 +575,8 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             mode = data.get('mode', 'peak')
             custom_hours = data.get('custom_hours', '')
             pce_s = float(data.get('pce_s', 1.0))
-            pce_l = float(data.get('pce_l', 1.5))
-            pce_t = float(data.get('pce_t', 2.0))
+            pce_l = float(data.get('pce_l', 1.8))
+            pce_t = float(data.get('pce_t', 2.5))
 
             with state_lock:
                 if current_run["status"] == "running":

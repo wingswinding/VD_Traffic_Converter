@@ -115,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
     consoleAccordion.open = true;
 
     const pceS = parseFloat(document.getElementById('pceS')?.value) || 1.0;
-    const pceL = parseFloat(document.getElementById('pceL')?.value) || 1.5;
-    const pceT = parseFloat(document.getElementById('pceT')?.value) || 2.0;
+    const pceL = parseFloat(document.getElementById('pceL')?.value) || 1.8;
+    const pceT = parseFloat(document.getElementById('pceT')?.value) || 2.5;
 
     try {
       const resp = await fetch('/api/run', {

@@ -181,7 +181,7 @@ def parse_custom_blocks(custom_hours_str):
                     blocks.append([h])
     return blocks
 
-def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.5, pce_t=2.0):
+def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.8, pce_t=2.5):
     hours_list, period_map = hours_config
     
     hourly_data = {h: {lid: {
@@ -391,7 +391,7 @@ def load_link_metadata(vd_xml_path, target_links):
                 
     return metadata
 
-def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s=1.0, pce_l=1.5, pce_t=2.0):
+def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s=1.0, pce_l=1.8, pce_t=2.5):
     report_progress(85, "Backing up existing files & formatting Excel sheets...")
     backup_file_if_exists(output_file)
     
@@ -737,7 +737,7 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
     output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
     build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s, pce_l, pce_t)
 
-def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.5, pce_t=2.0):
+def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.8, pce_t=2.5):
     timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = f"run_{date_str}_{timestamp_log}.log"
     log_filepath = os.path.join(LOGS_DIR, log_filename)
@@ -863,7 +863,8 @@ def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l
                 'e_los': calculate_los(e_vc, e_spd, limit)
             })
 
-    output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
+    timestamp_hhmm = datetime.datetime.now().strftime("%H%M")
+    output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}{timestamp_hhmm}.xlsx")
     build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s, pce_l, pce_t)
 
 if __name__ == '__main__':
@@ -871,7 +872,7 @@ if __name__ == '__main__':
     mode_input = sys.argv[2] if len(sys.argv) > 2 else 'peak'
     custom_hours_input = sys.argv[3] if len(sys.argv) > 3 else ''
     pce_s_input = float(sys.argv[4]) if len(sys.argv) > 4 else 1.0
-    pce_l_input = float(sys.argv[5]) if len(sys.argv) > 5 else 1.5
-    pce_t_input = float(sys.argv[6]) if len(sys.argv) > 6 else 2.0
+    pce_l_input = float(sys.argv[5]) if len(sys.argv) > 5 else 1.8
+    pce_t_input = float(sys.argv[6]) if len(sys.argv) > 6 else 2.5
     main(date_input, mode_input, custom_hours_input, pce_s_input, pce_l_input, pce_t_input)
 
