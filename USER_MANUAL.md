@@ -37,10 +37,19 @@
 
 ## 2. 快速開始與環境啟動
 
-### 步驟 1：啟動系統服務
+### 📋 系統前置需求 (Prerequisites)
+1. **Python 執行環境**：電腦需安裝 **Python 3.8 ~ 3.12** 版本。
+   * 下載位址：[Python 官方網站](https://www.python.org/downloads/)
+   * ⚠️ **安裝重要叮嚀**：安裝 Python 時，畫面最下方**務必勾選 `Add python.exe to PATH`**（將 Python 新增至系統環境變數），否則批次檔無法呼叫 Python。
+2. **必要 Python 套件**：系統需要 `requests`, `urllib3`, `openpyxl` 三個第三方套件。
+   * 💡 **自動安裝機制**：最新版 **`start_ui.bat`** 具備自動檢測功能，若首次執行發現缺少套件，將自動執行 `pip install -r requirements.txt` 為您完成安裝！
+
+---
+
+### 🚀 一鍵啟動步驟
 1. 開啟專案根目錄 `VD_Traffic_Converter`。
 2. 雙擊執行 **`start_ui.bat`** 批次檔。
-3. 控制台視窗將自動啟動 Web Server，並自動開啟系統網頁（如未自動開啟，請使用瀏覽器開啟 `http://127.0.0.1:8000`）。
+3. 批次檔會自動進行環境檢查，完成後會自動啟動 Web Server 並開啟瀏覽器網頁 `http://localhost:8000`。
 
 ```bash
 # 啟動命令範例（批次檔自動執行）
