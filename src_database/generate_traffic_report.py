@@ -594,13 +594,14 @@ def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, targe
     print(f"Report successfully saved to {output_file}")
     report_progress(100, "Execution completed successfully!")
 
-def main(date_str='20260716', mode='peak', custom_hours_str=''):
+
+def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.8, pce_t=2.5):
     timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = f"run_{date_str}_{timestamp_log}.log"
     log_filepath = os.path.join(LOGS_DIR, log_filename)
     sys.stdout = DualLogger(log_filepath)
     
-    report_progress(5, f"Starting Traffic Analysis for Date: {date_str} (Mode: {mode})")
+    report_progress(5, f"Starting Traffic Analysis for Date: {date_str} (Mode: {mode}, PCE: S={pce_s}/L={pce_l}/T={pce_t})")
     print(f"Runtime Log File: {log_filepath}")
     
     dt = datetime.datetime.strptime(date_str, "%Y%m%d")
@@ -612,21 +613,11 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
         period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in range(24)}
         download_hours = list(range(24))
     elif mode == 'custom' and custom_hours_str:
-        # custom_hours_str supports "7,8,17,18" or ranges like "7-9, 17-19"
-        chours = []
-        for part in custom_hours_str.split(','):
-            part = part.strip()
-            if '-' in part:
-                try:
-                    s_h, e_h = map(int, part.split('-'))
-                    for h in range(s_h, e_h):
-                        if 0 <= h < 24 and h not in chours: chours.append(h)
-                except ValueError: pass
-            elif part.isdigit():
-                h = int(part)
-                if 0 <= h < 24 and h not in chours: chours.append(h)
-        chours.sort()
-        if not chours: chours = [7, 8, 17, 18]
+        # Supports "7,8,17,18" or range syntax like "7-9, 17-19"
+        blocks = parse_custom_blocks(custom_hours_str)
+        chours = sorted(set(h for b in blocks for h in b))
+        if not chours:
+            chours = [7, 8, 17, 18]
         hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in chours]
         period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in chours}
         download_hours = chours
@@ -651,135 +642,6 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
     
     date_dir = download_vd_data(date_str, download_hours)
     hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, custom_hours_str, pce_s, pce_l, pce_t)
-    meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
-    
-    mainline_rows = []
-    ramp_rows = []
-    
-    segment_map = {
-        '0000200000200H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200100200H': ('大園-大竹', 100.0, 5, 'N', 7400.0),
-        '0000200000400H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200100300H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200000600H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
-        '0000200100600H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
-        '0000200000700H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
-        '0000200100700H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
-        '0000200001000H': ('機場系統-南桃園', 100.0, 4, 'Y', 6760.0),
-        '0000200101000H': ('機場系統-南桃園', 100.0, 3, 'N', 5700.0),
-        '0000200001200H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
-        '0000200101200H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
-        '0000200001400H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
-        '0000200101400H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
-        '0000200001600H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-        '0000200101600H': ('大湳-鶯歌系統', 100.0, 3, 'Y', 6760.0),
-        '0000200001910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-        '0000200101910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-    }
-    
-    ramp_map = {
-        '0000201001000H': ('大園交流道', '往東', '出口', '大園', 3800.0, 50.0),
-        '0000201101040H': ('大園交流道', '往西', '入口', '大園', 3000.0, 50.0),
-    }
-    
-    for lid in target_links:
-        m_data = metrics.get(lid, {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}})
-        info = meta.get(lid, {'road_name': '國道2號', 'road_dir': '往東', 'lanes': 3, 'is_mainline': True})
-        
-        m_pcu = m_data['morning']['pcu']
-        m_spd = m_data['morning']['speed']
-        e_pcu = m_data['evening']['pcu']
-        e_spd = m_data['evening']['speed']
-        
-        if lid in segment_map:
-            seg_name, limit, lanes, shoulder, cap = segment_map[lid]
-            m_vc = m_pcu / cap if cap > 0 else 0
-            e_vc = e_pcu / cap if cap > 0 else 0
-            
-            mainline_rows.append({
-                'road_name': info['road_name'],
-                'segment': seg_name,
-                'direction': info['road_dir'],
-                'capacity': cap,
-                'speed_limit': limit,
-                'm_pcu': m_pcu,
-                'm_vc': m_vc,
-                'm_speed': m_spd,
-                'm_los': calculate_los(m_vc, m_spd, limit),
-                'e_pcu': e_pcu,
-                'e_vc': e_vc,
-                'e_speed': e_spd,
-                'e_los': calculate_los(e_vc, e_spd, limit)
-            })
-        elif lid in ramp_map:
-            ic_name, direction, in_out, dest, cap, limit = ramp_map[lid]
-            m_vc = m_pcu / cap if cap > 0 else 0
-            e_vc = e_pcu / cap if cap > 0 else 0
-            
-            ramp_rows.append({
-                'road_name': info['road_name'],
-                'interchange': ic_name,
-                'direction': direction,
-                'in_out': in_out,
-                'destination': dest,
-                'capacity': cap,
-                'speed_limit': limit,
-                'm_pcu': m_pcu,
-                'm_vc': m_vc,
-                'm_speed': m_spd,
-                'm_los': calculate_los(m_vc, m_spd, limit),
-                'e_pcu': e_pcu,
-                'e_vc': e_vc,
-                'e_speed': e_spd,
-                'e_los': calculate_los(e_vc, e_spd, limit)
-            })
-
-    output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
-    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s, pce_l, pce_t)
-
-def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.8, pce_t=2.5):
-    timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"run_{date_str}_{timestamp_log}.log"
-    log_filepath = os.path.join(LOGS_DIR, log_filename)
-    sys.stdout = DualLogger(log_filepath)
-    
-    report_progress(5, f"Starting Traffic Analysis for Date: {date_str} (Mode: {mode}, PCE: S={pce_s}/L={pce_l}/T={pce_t})")
-    print(f"Runtime Log File: {log_filepath}")
-    
-    dt = datetime.datetime.strptime(date_str, "%Y%m%d")
-    is_weekend = dt.weekday() in [5, 6]
-    
-    if mode == 'fullday':
-        print("Date type: Full Day (00:00 - 24:00, 24 Hours)")
-        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in range(24)]
-        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in range(24)}
-        download_hours = list(range(24))
-    elif mode == 'custom' and custom_hours_str:
-        chours = [int(x.strip()) for x in custom_hours_str.split(',') if x.strip().isdigit()]
-        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in chours]
-        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in chours}
-        download_hours = chours
-        print(f"Date type: Custom Hours ({chours})")
-    else:
-        if is_weekend:
-            print("Date type: Weekend / Holiday Peak (10-12 Morning, 16-18 Evening)")
-            hours_list = ['1000-1100', '1100-1200', '1600-1700', '1700-1800']
-            period_map = {10: '1000-1100', 11: '1100-1200', 16: '1600-1700', 17: '1700-1800'}
-            download_hours = [10, 11, 16, 17]
-        else:
-            print("Date type: Weekday Peak (07-09 Morning, 17-19 Evening)")
-            hours_list = ['0700-0800', '0800-0900', '1700-1800', '1800-1900']
-            period_map = {7: '0700-0800', 8: '0800-0900', 17: '1700-1800', 18: '1800-1900'}
-            download_hours = [7, 8, 17, 18]
-        
-    report_progress(10, "Loading target link IDs configuration...")
-    with open(TARGET_LINKS_FILE, 'r', encoding='utf-8') as f:
-        target_links = [line.strip() for line in f if line.strip()]
-        
-    print(f"Loaded {len(target_links)} target LinkIDs.")
-    
-    date_dir = download_vd_data(date_str, download_hours)
-    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, pce_s, pce_l, pce_t)
     meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
     
     mainline_rows = []
