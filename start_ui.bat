@@ -2,6 +2,8 @@
 @chcp 65001 > nul
 title VD Traffic Report Automation System
 
+set PYTHONUNBUFFERED=1
+
 echo ====================================================
 echo   VD Traffic Report Automation Web UI
 echo ====================================================
@@ -33,7 +35,6 @@ echo [1/3] 檢查 Python 依賴套件...
 python -c "import requests, urllib3, openpyxl" >nul 2>nul
 if %errorlevel% neq 0 (
     echo [訊息] 檢測到缺少必要套件，正在自動安裝中...
-    python -m pip install --upgrade pip
     python -m pip install -r requirements.txt
     if %errorlevel% neq 0 (
         echo.
@@ -53,6 +54,6 @@ echo [3/3] 正在自動開啟瀏覽器頁面...
 echo.
 
 start http://localhost:8000
-python src_database/web_server.py 8000
+python -u src_database/web_server.py 8000
 
 pause

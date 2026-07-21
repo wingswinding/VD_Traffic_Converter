@@ -731,15 +731,15 @@ def run_server(port=8000):
     os.makedirs(WEB_UI_DIR, exist_ok=True)
     server_address = ('', port)
     httpd = QuietHTTPServer(server_address, VDRequestHandler)
-    print(f"==================================================")
-    print(f"VD Traffic Report Web UI Server Started!")
-    print(f"Please open browser at: http://localhost:{port}")
-    print(f"Press Ctrl+C to stop server")
-    print(f"==================================================")
+    print(f"==================================================", flush=True)
+    print(f"  VD Traffic Report Web UI Server Started!", flush=True)
+    print(f"  伺服器已成功啟動並運行中！(請保持此控制台視窗開啟)", flush=True)
+    print(f"  請使用瀏覽器開啟: http://localhost:{port}", flush=True)
+    print(f"==================================================", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer stopped.")
+        print("\nServer stopped.", flush=True)
 
 if __name__ == '__main__':
     port_input = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 8000
