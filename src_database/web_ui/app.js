@@ -172,9 +172,9 @@ document.addEventListener('DOMContentLoaded', () => {
               dateInput.value = `${yyyy}-${mm}-${dd}`;
               updateDayBadge();
             }
-            loadLatestResults(currentAnalyzingDate);
-            loadReports();
-            loadLogs();
+            await loadLatestResults(currentAnalyzingDate);
+            await loadReports();
+            await loadLogs();
           }
         }
       } catch (err) {

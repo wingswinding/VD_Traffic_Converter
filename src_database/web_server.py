@@ -7,6 +7,7 @@ import urllib.parse
 import subprocess
 import threading
 import xml.etree.ElementTree as ET
+import re
 import openpyxl
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -112,18 +113,29 @@ def run_analysis_thread(date_str, mode, custom_hours, pce_s=1.0, pce_l=1.8, pce_
             current_run["message"] = "執行過程發生錯誤！"
             current_run["logs"].append("=== 執行失敗，請檢查 Log ===")
 
+def get_file_timestamp_key(filepath):
+    fname = os.path.basename(filepath)
+    m = re.search(r'VD_traffic_report_(\d+)', fname)
+    mtime = os.path.getmtime(filepath) if os.path.exists(filepath) else 0
+    if m:
+        digits = m.group(1)
+        if len(digits) == 8:
+            digits += "0000"
+        return (digits, mtime)
+    return ("000000000000", mtime)
+
 def parse_latest_excel_results(requested_date=None):
     if not os.path.exists(OUTPUT_DIR):
         return None
         
     target_file = None
     if requested_date:
-        candidates = sorted(glob.glob(os.path.join(OUTPUT_DIR, f"VD_traffic_report_{requested_date}*.xlsx")), key=os.path.getmtime, reverse=True)
+        candidates = sorted(glob.glob(os.path.join(OUTPUT_DIR, f"VD_traffic_report_{requested_date}*.xlsx")), key=get_file_timestamp_key, reverse=True)
         if candidates:
             target_file = candidates[0]
             
     if not target_file:
-        files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=os.path.getmtime, reverse=True)
+        files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=get_file_timestamp_key, reverse=True)
         if not files:
             return None
         target_file = files[0]
@@ -481,7 +493,7 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             reports = []
             if os.path.exists(OUTPUT_DIR):
-                files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=os.path.getmtime, reverse=True)
+                files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "*.xlsx")), key=get_file_timestamp_key, reverse=True)
                 for f in files:
                     reports.append({
                         "name": os.path.basename(f),
