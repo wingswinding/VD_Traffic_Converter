@@ -695,7 +695,7 @@ input:focus, select:focus, textarea:focus {
 
 /* Row-delete button in metadata table */
 .btn-row-delete {
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 4px;
   border: 1px solid rgba(239,68,68,0.4);
   background: rgba(239,68,68,0.1);
@@ -708,6 +708,34 @@ input:focus, select:focus, textarea:focus {
 .btn-row-delete:hover {
   background: rgba(239,68,68,0.3);
 }
+
+/* Row reorder (▲▼) buttons */
+.btn-row-order {
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,242,254,0.3);
+  background: rgba(0,242,254,0.06);
+  color: var(--primary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 2px;
+}
+
+.btn-row-order:hover:not(:disabled) {
+  background: rgba(0,242,254,0.2);
+}
+
+.btn-row-order:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.col-act {
+  white-space: nowrap;
+  width: 100px;
+}
+
 
 .badge-count {
   padding: 4px 10px;

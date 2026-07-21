@@ -371,6 +371,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Helper: move a LinkID up or down within linksTextarea and re-render
+  function reorderLink(linkId, direction) {
+    const lines = linksTextarea.value.split('\n').map(x => x.trim()).filter(x => x);
+    const idx = lines.indexOf(linkId);
+    if (idx === -1) return;
+    if (direction === 'up' && idx > 0) {
+      [lines[idx - 1], lines[idx]] = [lines[idx], lines[idx - 1]];
+    } else if (direction === 'down' && idx < lines.length - 1) {
+      [lines[idx], lines[idx + 1]] = [lines[idx + 1], lines[idx]];
+    } else {
+      return; // already at boundary, no change
+    }
+    linksTextarea.value = lines.join('\n');
+    loadLinkMetadata();
+  }
+
   async function loadLinkMetadata() {
     try {
       const resp = await fetch('/api/link_metadata');
@@ -381,9 +397,12 @@ document.addEventListener('DOMContentLoaded', () => {
       linksCountBadge.textContent = `共 ${rawMetadataList.length} 筆`;
 
       linksMetadataBody.innerHTML = '';
+      const total = rawMetadataList.length;
       rawMetadataList.forEach((m, idx) => {
         const tr = document.createElement('tr');
         tr.dataset.linkid = m.link_id;
+        const isFirst = idx === 0;
+        const isLast  = idx === total - 1;
         tr.innerHTML = `
           <td>${idx + 1}</td>
           <td style="font-family:var(--font-mono); font-weight:600; color:var(--primary); word-break:break-all;">${m.link_id}</td>
@@ -392,12 +411,22 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${m.direction}</td>
           <td><span class="type-badge">${m.type}</span></td>
           <td>${m.lanes} 車道</td>
-          <td><button class="btn-row-delete" data-linkid="${m.link_id}">− 刪除</button></td>
+          <td class="col-act">
+            <button class="btn-row-order btn-row-up"  data-linkid="${m.link_id}" ${isFirst  ? 'disabled' : ''} title="上移">▲</button>
+            <button class="btn-row-order btn-row-dn"  data-linkid="${m.link_id}" ${isLast   ? 'disabled' : ''} title="下移">▼</button>
+            <button class="btn-row-delete"             data-linkid="${m.link_id}" title="刪除">✕</button>
+          </td>
         `;
         linksMetadataBody.appendChild(tr);
       });
 
-      // Attach delete handlers
+      // Attach handlers
+      linksMetadataBody.querySelectorAll('.btn-row-up').forEach(btn => {
+        btn.addEventListener('click', () => reorderLink(btn.dataset.linkid, 'up'));
+      });
+      linksMetadataBody.querySelectorAll('.btn-row-dn').forEach(btn => {
+        btn.addEventListener('click', () => reorderLink(btn.dataset.linkid, 'down'));
+      });
       linksMetadataBody.querySelectorAll('.btn-row-delete').forEach(btn => {
         btn.addEventListener('click', () => {
           const lid = btn.dataset.linkid;
@@ -410,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(err);
     }
   }
+
 
   saveLinksBtn.addEventListener('click', async () => {
     const rawText = linksTextarea.value;
