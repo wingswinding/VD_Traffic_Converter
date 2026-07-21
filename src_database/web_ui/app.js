@@ -96,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(renderDashboardView, 100);
       } else if (tabId === 'links') {
         loadLinkMetadata();
+        // Reload browser data if not yet initialised (e.g. first visit before initBrowser resolved)
+        if (Object.keys(browseRoadData).length === 0) initBrowser();
       }
     });
   });
@@ -513,12 +515,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!road) { alert('請先選擇路線'); return; }
     const type = document.querySelector('input[name="browseType"]:checked')?.value || '全部';
     const dir = document.querySelector('input[name="browseDir"]:checked')?.value || '全部';
-    const kmFrom = document.getElementById('browseKmFrom').value;
-    const kmTo = document.getElementById('browseKmTo').value;
+    let kmFrom = document.getElementById('browseKmFrom').value;
+    let kmTo   = document.getElementById('browseKmTo').value;
+
+    // ── 匝道型態：自動擴展起迄里程至上下游交流道 ──
+    if (type === '匝道' && (kmFrom !== '' || kmTo !== '')) {
+      const region = document.querySelector('.region-btn.active')?.dataset.region || '';
+      const ics = (browseRoadData[region]?.[road] || []).slice().sort((a, b) => a.km - b.km);
+      if (ics.length > 0) {
+        const fromKm = kmFrom !== '' ? parseFloat(kmFrom) : ics[0].km;
+        const toKm   = kmTo   !== '' ? parseFloat(kmTo)   : ics[ics.length - 1].km;
+
+        // Find the IC whose km matches (within 0.5K tolerance)
+        const fromIdx = ics.findIndex(ic => Math.abs(ic.km - fromKm) < 0.5);
+        const toIdx   = ics.findIndex(ic => Math.abs(ic.km - toKm)   < 0.5);
+
+        // Expand: one IC before fromIdx, one IC after toIdx
+        const expandedFrom = (fromIdx > 0)                   ? ics[fromIdx - 1].km : ics[0].km;
+        const expandedTo   = (toIdx >= 0 && toIdx < ics.length - 1) ? ics[toIdx + 1].km : ics[ics.length - 1].km;
+
+        kmFrom = expandedFrom;
+        kmTo   = expandedTo;
+
+        // Show user which ICs were selected
+        const fromName = fromIdx > 0 ? ics[fromIdx - 1].name : ics[0].name;
+        const toName   = toIdx >= 0 && toIdx < ics.length - 1 ? ics[toIdx + 1].name : ics[ics.length - 1].name;
+        document.getElementById('browseResultCount').textContent =
+          `匝道模式擴展範圍：${fromName}(${kmFrom}K) ~ ${toName}(${kmTo}K) 查詢中...`;
+      }
+    }
 
     let url = `/api/browse_links?road=${encodeURIComponent(road)}&type=${encodeURIComponent(type)}&dir=${encodeURIComponent(dir)}`;
-    if (kmFrom) url += `&km_from=${kmFrom}`;
-    if (kmTo) url += `&km_to=${kmTo}`;
+    if (kmFrom !== '') url += `&km_from=${kmFrom}`;
+    if (kmTo   !== '') url += `&km_to=${kmTo}`;
 
     try {
       const resp = await fetch(url);
@@ -534,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
     countEl.textContent = `查詢結果：共 ${links.length} 筆`;
     tbody.innerHTML = '';
     if (links.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">無符合條件的路段</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">無符合條件的路段</td></tr>';
       return;
     }
     links.forEach((lk, idx) => {
@@ -543,6 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><input type="checkbox" class="browse-check" checked data-linkid="${lk.link_id}"></td>
         <td>${idx + 1}</td>
         <td style="font-family:var(--font-mono); color:var(--primary); font-size:0.78rem;">${lk.link_id}</td>
+        <td style="font-family:var(--font-mono); color:var(--text-muted); font-size:0.75rem; max-width:160px; overflow:hidden; text-overflow:ellipsis;" title="${lk.vd_id}">${lk.vd_id}</td>
         <td>${lk.direction}</td>
         <td><span class="type-badge">${lk.type}</span></td>
         <td>${lk.km}K</td>
