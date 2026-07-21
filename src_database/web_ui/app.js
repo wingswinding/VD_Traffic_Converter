@@ -49,7 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let vcChart = null;
   let speedChart = null;
 
-  // 1. Date Change Handler
+  // 1. Date Change Handler & Default to Today's Date
+  const today = new Date();
+  const tY = today.getFullYear();
+  const tM = String(today.getMonth() + 1).padStart(2, '0');
+  const tD = String(today.getDate()).padStart(2, '0');
+  dateInput.value = `${tY}-${tM}-${tD}`;
+
   function updateDayBadge() {
     const dateVal = dateInput.value;
     if (!dateVal) return;
