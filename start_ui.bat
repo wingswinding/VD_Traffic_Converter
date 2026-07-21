@@ -1,7 +1,5 @@
 @echo off
-@chcp 65001 > nul
 title VD Traffic Report Automation System
-
 set PYTHONUNBUFFERED=1
 
 echo ====================================================
@@ -9,48 +7,42 @@ echo   VD Traffic Report Automation Web UI
 echo ====================================================
 echo.
 
-:: 1. 檢查 Python 環境
+where python >nul 2>nul
+if %errorlevel% neq 0 goto :NO_PYTHON
+
+python -c "import requests, urllib3, openpyxl" >nul 2>nul
+if %errorlevel% neq 0 goto :INSTALL_PACKAGES
+
+goto :START_SERVER
+
+:NO_PYTHON
+echo [訊息] 檢測到尚未安裝 Python，啟動自動安裝程序...
+winget install --id Python.Python.3.11 --exact --source winget --accept-package-agreements --accept-source-agreements
+set "PATH=%LocalAppData%\Programs\Python\Python311;%LocalAppData%\Programs\Python\Python311\Scripts;%PATH%"
 where python >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [訊息] 檢測到系統尚未安裝 Python 環境！
-    echo [動作] 啟動 Windows 套件管理器 winget 自動下載安裝 Python 3.11...
     echo.
-    winget install --id Python.Python.3.11 --exact --source winget --accept-package-agreements --accept-source-agreements
-    set "PATH=%LocalAppData%\Programs\Python\Python311;%LocalAppData%\Programs\Python\Python311\Scripts;%PATH%"
-    where python >nul 2>nul
-    if %errorlevel% neq 0 (
-        echo.
-        echo ----------------------------------------------------
-        echo 【注意】自動安裝 Python 完成後，請關閉視窗重新開啟 start_ui.bat。
-        echo 若未安裝成功，請造訪 https://www.python.org/downloads/ 下載安裝。
-        echo ----------------------------------------------------
-        echo.
-        pause
-        exit /b 1
-    )
+    echo 請於 Python 安裝完成後，重新開啟 start_ui.bat。
+    pause
+    exit /b 1
 )
 
-:: 2. 檢查 Python 套件
-echo [1/3] 檢查 Python 依賴套件...
-python -c "import requests, urllib3, openpyxl" >nul 2>nul
+:INSTALL_PACKAGES
+echo [訊息] 正在自動安裝套件 (requests, urllib3, openpyxl)...
+python -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
-    echo [訊息] 檢測到缺少必要套件，正在自動安裝中...
-    python -m pip install -r requirements.txt
-    if %errorlevel% neq 0 (
-        echo.
-        echo 【錯誤】套件自動安裝失敗，請檢查網路連線或手動執行 pip install -r requirements.txt
-        echo.
-        pause
-        exit /b 1
-    )
-    echo [成功] 所有必要套件自動安裝完成！
-) else (
-    echo [成功] 必要套件已完全就緒！
+    echo [錯誤] 套件安裝失敗，請檢查網路連線。
+    pause
+    exit /b 1
 )
 
+:START_SERVER
 echo.
-echo [2/3] 正在啟動 Web 服務伺服器 http://localhost:8000 ...
-echo [3/3] 正在自動開啟瀏覽器頁面...
+echo ====================================================
+echo   VD Traffic Report Web UI Server Started!
+echo   伺服器已成功啟動並運行中！(請保持此控制台視窗開啟)
+echo   請使用瀏覽器開啟: http://localhost:8000
+echo ====================================================
 echo.
 
 start http://localhost:8000
