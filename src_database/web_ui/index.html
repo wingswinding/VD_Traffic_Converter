@@ -54,11 +54,22 @@
           </select>
         </div>
 
+        <!-- PCE Conversion Factors Customization -->
+        <div class="control-group">
+          <label>🚗 車當量係數 (PCE)</label>
+          <div class="pce-inputs-group">
+            <span class="pce-label">S:<input type="number" id="pceS" value="1.0" min="0.1" max="5.0" step="0.1" title="小客車當量"></span>
+            <span class="pce-label">L:<input type="number" id="pceL" value="1.5" min="0.1" max="5.0" step="0.1" title="大客車當量"></span>
+            <span class="pce-label">T:<input type="number" id="pceT" value="2.0" min="0.1" max="5.0" step="0.1" title="聯結車當量"></span>
+          </div>
+        </div>
+
         <!-- Custom Hours Input (Hidden by default) -->
         <div class="control-group hidden" id="customHoursGroup">
           <label for="customHoursInput">🔢 自訂小時 (逗號分隔 0-23)</label>
           <input type="text" id="customHoursInput" placeholder="例: 7, 8, 17, 18">
         </div>
+
 
         <!-- Action Button -->
         <div class="control-action">

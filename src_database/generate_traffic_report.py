@@ -159,7 +159,7 @@ def download_vd_data(date_str, hours):
                 
     return date_dir
 
-def process_vd_data(date_dir, target_links, hours_config):
+def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode='peak', pce_s=1.0, pce_l=1.5, pce_t=2.0):
     hours_list, period_map = hours_config
     
     hourly_data = {h: {lid: {
@@ -168,6 +168,9 @@ def process_vd_data(date_dir, target_links, hours_config):
         'T': 0, 'T_speed_vol': 0,
         'speed_vol': 0, 'vol': 0
     } for lid in target_links} for h in hours_list}
+
+    # Store minute-by-minute data for 15-minute sliding 1-hour window peak calculation
+    minute_data = {}
     
     link_vdid_map = {}
     
@@ -182,14 +185,14 @@ def process_vd_data(date_dir, target_links, hours_config):
     for gz_file in gz_files:
         basename = os.path.basename(gz_file)
         time_part = basename.replace("VDLive_", "").replace(".xml.gz", "")
-        if len(time_part) != 4:
+        if len(time_part) != 4 or not time_part.isdigit():
             continue
         hour = int(time_part[:2])
+        minute = int(time_part[2:])
+        m_of_day = hour * 60 + minute
         
         h_key = period_map.get(hour)
-        if not h_key:
-            continue
-            
+        
         try:
             with gzip.open(gz_file, 'rb') as f:
                 tree = ET.parse(f)
@@ -203,6 +206,11 @@ def process_vd_data(date_dir, target_links, hours_config):
                             if link_id not in link_vdid_map and vd_id:
                                 link_vdid_map[link_id] = vd_id
                                 
+                            if m_of_day not in minute_data:
+                                minute_data[m_of_day] = {}
+                            if link_id not in minute_data[m_of_day]:
+                                minute_data[m_of_day][link_id] = {'S': 0, 'L': 0, 'T': 0, 'speed_vol': 0, 'vol': 0}
+
                             for lane in dlink.iter(f'{ns}Lane'):
                                 speed = float(lane.findtext(f'{ns}Speed') or 0)
                                 for vehicle in lane.iter(f'{ns}Vehicle'):
@@ -211,17 +219,26 @@ def process_vd_data(date_dir, target_links, hours_config):
                                     veh_speed = float(vehicle.findtext(f'{ns}Speed') or speed)
                                     
                                     if vtype == 'S':
-                                        hourly_data[h_key][link_id]['S'] += vol
-                                        hourly_data[h_key][link_id]['S_speed_vol'] += veh_speed * vol
+                                        if h_key:
+                                            hourly_data[h_key][link_id]['S'] += vol
+                                            hourly_data[h_key][link_id]['S_speed_vol'] += veh_speed * vol
+                                        minute_data[m_of_day][link_id]['S'] += vol
                                     elif vtype == 'L':
-                                        hourly_data[h_key][link_id]['L'] += vol
-                                        hourly_data[h_key][link_id]['L_speed_vol'] += veh_speed * vol
+                                        if h_key:
+                                            hourly_data[h_key][link_id]['L'] += vol
+                                            hourly_data[h_key][link_id]['L_speed_vol'] += veh_speed * vol
+                                        minute_data[m_of_day][link_id]['L'] += vol
                                     elif vtype == 'T':
-                                        hourly_data[h_key][link_id]['T'] += vol
-                                        hourly_data[h_key][link_id]['T_speed_vol'] += veh_speed * vol
+                                        if h_key:
+                                            hourly_data[h_key][link_id]['T'] += vol
+                                            hourly_data[h_key][link_id]['T_speed_vol'] += veh_speed * vol
+                                        minute_data[m_of_day][link_id]['T'] += vol
                                         
-                                    hourly_data[h_key][link_id]['speed_vol'] += veh_speed * vol
-                                    hourly_data[h_key][link_id]['vol'] += vol
+                                    if h_key:
+                                        hourly_data[h_key][link_id]['speed_vol'] += veh_speed * vol
+                                        hourly_data[h_key][link_id]['vol'] += vol
+                                    minute_data[m_of_day][link_id]['speed_vol'] += veh_speed * vol
+                                    minute_data[m_of_day][link_id]['vol'] += vol
         except Exception:
             pass
             
@@ -232,32 +249,71 @@ def process_vd_data(date_dir, target_links, hours_config):
 
     final_peak_metrics = {lid: {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}} for lid in target_links}
     
-    m_h1 = hours_list[0] if len(hours_list) > 0 else '0700-0800'
-    m_h2 = hours_list[1] if len(hours_list) > 1 else m_h1
-    e_h1 = hours_list[2] if len(hours_list) > 2 else m_h1
-    e_h2 = hours_list[3] if len(hours_list) > 3 else e_h1
-    
-    for lid in target_links:
-        m_s = hourly_data[m_h1][lid]['S'] + hourly_data[m_h2][lid]['S']
-        m_l = hourly_data[m_h1][lid]['L'] + hourly_data[m_h2][lid]['L']
-        m_t = hourly_data[m_h1][lid]['T'] + hourly_data[m_h2][lid]['T']
-        m_sv = hourly_data[m_h1][lid]['speed_vol'] + hourly_data[m_h2][lid]['speed_vol']
-        m_v = hourly_data[m_h1][lid]['vol'] + hourly_data[m_h2][lid]['vol']
-        
-        m_pcu_ph = (m_s * 1.0 + m_l * 1.5 + m_t * 2.0) / 2.0
-        m_avg_spd = (m_sv / m_v) if m_v > 0 else 0
-        
-        e_s = hourly_data[e_h1][lid]['S'] + hourly_data[e_h2][lid]['S']
-        e_l = hourly_data[e_h1][lid]['L'] + hourly_data[e_h2][lid]['L']
-        e_t = hourly_data[e_h1][lid]['T'] + hourly_data[e_h2][lid]['T']
-        e_sv = hourly_data[e_h1][lid]['speed_vol'] + hourly_data[e_h2][lid]['speed_vol']
-        e_v = hourly_data[e_h1][lid]['vol'] + hourly_data[e_h2][lid]['vol']
-        
-        e_pcu_ph = (e_s * 1.0 + e_l * 1.5 + e_t * 2.0) / 2.0
-        e_avg_spd = (e_sv / e_v) if e_v > 0 else 0
-        
-        final_peak_metrics[lid]['morning'] = {'pcu': m_pcu_ph, 'speed': m_avg_spd}
-        final_peak_metrics[lid]['evening'] = {'pcu': e_pcu_ph, 'speed': e_avg_spd}
+    if mode == 'peak':
+        # 15-minute sliding 1-hour window peak calculation:
+        # Weekday: Morning 07:00~09:00 (starts 0700, 0715, 0730, 0745, 0800), Evening 17:00~19:00 (starts 1700, 1715, 1730, 1745, 1800)
+        # Weekend: Morning 10:00~12:00, Evening 16:00~18:00
+        if is_weekend:
+            m_starts = [600, 615, 630, 645, 660]   # 10:00 ~ 12:00
+            e_starts = [960, 975, 990, 1005, 1020]  # 16:00 ~ 18:00
+        else:
+            m_starts = [420, 435, 450, 465, 480]    # 07:00 ~ 09:00
+            e_starts = [1020, 1035, 1050, 1065, 1080] # 17:00 ~ 19:00
+
+        for lid in target_links:
+            # Morning Peak: find 1-hour sliding window with max PCU
+            m_best_pcu, m_best_spd = 0, 0
+            for start in m_starts:
+                end = start + 60
+                tot_s = sum(minute_data.get(m, {}).get(lid, {}).get('S', 0) for m in range(start, end))
+                tot_l = sum(minute_data.get(m, {}).get(lid, {}).get('L', 0) for m in range(start, end))
+                tot_t = sum(minute_data.get(m, {}).get(lid, {}).get('T', 0) for m in range(start, end))
+                tot_sv = sum(minute_data.get(m, {}).get(lid, {}).get('speed_vol', 0) for m in range(start, end))
+                tot_v = sum(minute_data.get(m, {}).get(lid, {}).get('vol', 0) for m in range(start, end))
+
+                pcu = tot_s * pce_s + tot_l * pce_l + tot_t * pce_t
+                spd = (tot_sv / tot_v) if tot_v > 0 else 0
+                if pcu >= m_best_pcu:
+                    m_best_pcu = pcu
+                    m_best_spd = spd
+
+            # Evening Peak: find 1-hour sliding window with max PCU
+            e_best_pcu, e_best_spd = 0, 0
+            for start in e_starts:
+                end = start + 60
+                tot_s = sum(minute_data.get(m, {}).get(lid, {}).get('S', 0) for m in range(start, end))
+                tot_l = sum(minute_data.get(m, {}).get(lid, {}).get('L', 0) for m in range(start, end))
+                tot_t = sum(minute_data.get(m, {}).get(lid, {}).get('T', 0) for m in range(start, end))
+                tot_sv = sum(minute_data.get(m, {}).get(lid, {}).get('speed_vol', 0) for m in range(start, end))
+                tot_v = sum(minute_data.get(m, {}).get(lid, {}).get('vol', 0) for m in range(start, end))
+
+                pcu = tot_s * pce_s + tot_l * pce_l + tot_t * pce_t
+                spd = (tot_sv / tot_v) if tot_v > 0 else 0
+                if pcu >= e_best_pcu:
+                    e_best_pcu = pcu
+                    e_best_spd = spd
+
+            final_peak_metrics[lid]['morning'] = {'pcu': m_best_pcu, 'speed': m_best_spd}
+            final_peak_metrics[lid]['evening'] = {'pcu': e_best_pcu, 'speed': e_best_spd}
+    else:
+        # Fullday or custom mode: max hourly PCU
+        for lid in target_links:
+            m_pcu, m_spd = 0, 0
+            e_pcu, e_spd = 0, 0
+            half = max(1, len(hours_list) // 2)
+            for i, h_name in enumerate(hours_list):
+                d = hourly_data[h_name][lid]
+                pcu = d['S'] * pce_s + d['L'] * pce_l + d['T'] * pce_t
+                spd = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
+                if i < half:
+                    if pcu >= m_pcu:
+                        m_pcu, m_spd = pcu, spd
+                else:
+                    if pcu >= e_pcu:
+                        e_pcu, e_spd = pcu, spd
+
+            final_peak_metrics[lid]['morning'] = {'pcu': m_pcu, 'speed': m_spd}
+            final_peak_metrics[lid]['evening'] = {'pcu': e_pcu, 'speed': e_spd}
         
     return hourly_data, final_peak_metrics, link_vdid_map
 
@@ -295,7 +351,7 @@ def load_link_metadata(vd_xml_path, target_links):
                 
     return metadata
 
-def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, target_links, meta, hours_list, link_vdid_map):
+def build_excel_report(output_file, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s=1.0, pce_l=1.5, pce_t=2.0):
     report_progress(85, "Backing up existing files & formatting Excel sheets...")
     backup_file_if_exists(output_file)
     
@@ -346,7 +402,7 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
             cell.border = border_thin
             
     row_idx = 3
-    for row in mainline_data:
+    for row in mainline_rows:
         ws_main.cell(row=row_idx, column=1, value=row['road_name']).alignment = align_center
         ws_main.cell(row=row_idx, column=2, value=row['segment']).alignment = align_left
         ws_main.cell(row=row_idx, column=3, value=row['direction']).alignment = align_center
@@ -406,7 +462,7 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
             cell.border = border_thin
             
     row_idx = 3
-    for row in ramp_data:
+    for row in ramp_rows:
         ws_ramp.cell(row=row_idx, column=1, value=row['road_name']).alignment = align_center
         ws_ramp.cell(row=row_idx, column=2, value=row['interchange']).alignment = align_left
         ws_ramp.cell(row=row_idx, column=3, value=row['direction']).alignment = align_center
@@ -467,7 +523,7 @@ def build_excel_report(output_file, hourly_data, mainline_data, ramp_data, targe
             t_spd = (d['T_speed_vol'] / d['T']) if d['T'] > 0 else 0
             
             tot_veh = round(d['S'] + d['L'] + d['T'])
-            tot_pcu = round(d['S'] * 1.0 + d['L'] * 1.5 + d['T'] * 2.0)
+            tot_pcu = round(d['S'] * pce_s + d['L'] * pce_l + d['T'] * pce_t)
             avg_spd = (d['speed_vol'] / d['vol']) if d['vol'] > 0 else 0
             
             ws.cell(row=row_idx, column=1, value=vd_id).alignment = align_center
@@ -541,7 +597,7 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
     print(f"Loaded {len(target_links)} target LinkIDs.")
     
     date_dir = download_vd_data(date_str, download_hours)
-    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map))
+    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, pce_s, pce_l, pce_t)
     meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
     
     mainline_rows = []
@@ -626,10 +682,143 @@ def main(date_str='20260716', mode='peak', custom_hours_str=''):
             })
 
     output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
-    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map)
+    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s, pce_l, pce_t)
+
+def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l=1.5, pce_t=2.0):
+    timestamp_log = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"run_{date_str}_{timestamp_log}.log"
+    log_filepath = os.path.join(LOGS_DIR, log_filename)
+    sys.stdout = DualLogger(log_filepath)
+    
+    report_progress(5, f"Starting Traffic Analysis for Date: {date_str} (Mode: {mode}, PCE: S={pce_s}/L={pce_l}/T={pce_t})")
+    print(f"Runtime Log File: {log_filepath}")
+    
+    dt = datetime.datetime.strptime(date_str, "%Y%m%d")
+    is_weekend = dt.weekday() in [5, 6]
+    
+    if mode == 'fullday':
+        print("Date type: Full Day (00:00 - 24:00, 24 Hours)")
+        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in range(24)]
+        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in range(24)}
+        download_hours = list(range(24))
+    elif mode == 'custom' and custom_hours_str:
+        chours = [int(x.strip()) for x in custom_hours_str.split(',') if x.strip().isdigit()]
+        hours_list = [f"{h:02d}00-{(h+1):02d}00" for h in chours]
+        period_map = {h: f"{h:02d}00-{(h+1):02d}00" for h in chours}
+        download_hours = chours
+        print(f"Date type: Custom Hours ({chours})")
+    else:
+        if is_weekend:
+            print("Date type: Weekend / Holiday Peak (10-12 Morning, 16-18 Evening)")
+            hours_list = ['1000-1100', '1100-1200', '1600-1700', '1700-1800']
+            period_map = {10: '1000-1100', 11: '1100-1200', 16: '1600-1700', 17: '1700-1800'}
+            download_hours = [10, 11, 16, 17]
+        else:
+            print("Date type: Weekday Peak (07-09 Morning, 17-19 Evening)")
+            hours_list = ['0700-0800', '0800-0900', '1700-1800', '1800-1900']
+            period_map = {7: '0700-0800', 8: '0800-0900', 17: '1700-1800', 18: '1800-1900'}
+            download_hours = [7, 8, 17, 18]
+        
+    report_progress(10, "Loading target link IDs configuration...")
+    with open(TARGET_LINKS_FILE, 'r', encoding='utf-8') as f:
+        target_links = [line.strip() for line in f if line.strip()]
+        
+    print(f"Loaded {len(target_links)} target LinkIDs.")
+    
+    date_dir = download_vd_data(date_str, download_hours)
+    hourly_data, metrics, link_vdid_map = process_vd_data(date_dir, target_links, (hours_list, period_map), is_weekend, mode, pce_s, pce_l, pce_t)
+    meta = load_link_metadata(VD_POINT_LIST_FILE, target_links)
+    
+    mainline_rows = []
+    ramp_rows = []
+    
+    segment_map = {
+        '0000200000200H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
+        '0000200100200H': ('大園-大竹', 100.0, 5, 'N', 7400.0),
+        '0000200000400H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
+        '0000200100300H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
+        '0000200000600H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
+        '0000200100600H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
+        '0000200000700H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
+        '0000200100700H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
+        '0000200001000H': ('機場系統-南桃園', 100.0, 4, 'Y', 6760.0),
+        '0000200101000H': ('機場系統-南桃園', 100.0, 3, 'N', 5700.0),
+        '0000200001200H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
+        '0000200101200H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
+        '0000200001400H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
+        '0000200101400H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
+        '0000200001600H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
+        '0000200101600H': ('大湳-鶯歌系統', 100.0, 3, 'Y', 6760.0),
+        '0000200001910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
+        '0000200101910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
+    }
+    
+    ramp_map = {
+        '0000201001000H': ('大園交流道', '往東', '出口', '大園', 3800.0, 50.0),
+        '0000201101040H': ('大園交流道', '往西', '入口', '大園', 3000.0, 50.0),
+    }
+    
+    for lid in target_links:
+        m_data = metrics.get(lid, {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}})
+        info = meta.get(lid, {'road_name': '國道2號', 'road_dir': '往東', 'lanes': 3, 'is_mainline': True})
+        
+        m_pcu = m_data['morning']['pcu']
+        m_spd = m_data['morning']['speed']
+        e_pcu = m_data['evening']['pcu']
+        e_spd = m_data['evening']['speed']
+        
+        if lid in segment_map:
+            seg_name, limit, lanes, shoulder, cap = segment_map[lid]
+            m_vc = m_pcu / cap if cap > 0 else 0
+            e_vc = e_pcu / cap if cap > 0 else 0
+            
+            mainline_rows.append({
+                'road_name': info['road_name'],
+                'segment': seg_name,
+                'direction': info['road_dir'],
+                'capacity': cap,
+                'speed_limit': limit,
+                'm_pcu': m_pcu,
+                'm_vc': m_vc,
+                'm_speed': m_spd,
+                'm_los': calculate_los(m_vc, m_spd, limit),
+                'e_pcu': e_pcu,
+                'e_vc': e_vc,
+                'e_speed': e_spd,
+                'e_los': calculate_los(e_vc, e_spd, limit)
+            })
+        elif lid in ramp_map:
+            ic_name, direction, in_out, dest, cap, limit = ramp_map[lid]
+            m_vc = m_pcu / cap if cap > 0 else 0
+            e_vc = e_pcu / cap if cap > 0 else 0
+            
+            ramp_rows.append({
+                'road_name': info['road_name'],
+                'interchange': ic_name,
+                'direction': direction,
+                'in_out': in_out,
+                'destination': dest,
+                'capacity': cap,
+                'speed_limit': limit,
+                'm_pcu': m_pcu,
+                'm_vc': m_vc,
+                'm_speed': m_spd,
+                'm_los': calculate_los(m_vc, m_spd, limit),
+                'e_pcu': e_pcu,
+                'e_vc': e_vc,
+                'e_speed': e_spd,
+                'e_los': calculate_los(e_vc, e_spd, limit)
+            })
+
+    output_path = os.path.join(OUTPUT_DIR, f"VD_traffic_report_{date_str}.xlsx")
+    build_excel_report(output_path, hourly_data, mainline_rows, ramp_rows, target_links, meta, hours_list, link_vdid_map, pce_s, pce_l, pce_t)
 
 if __name__ == '__main__':
     date_input = sys.argv[1] if len(sys.argv) > 1 else '20260716'
     mode_input = sys.argv[2] if len(sys.argv) > 2 else 'peak'
     custom_hours_input = sys.argv[3] if len(sys.argv) > 3 else ''
-    main(date_input, mode_input, custom_hours_input)
+    pce_s_input = float(sys.argv[4]) if len(sys.argv) > 4 else 1.0
+    pce_l_input = float(sys.argv[5]) if len(sys.argv) > 5 else 1.5
+    pce_t_input = float(sys.argv[6]) if len(sys.argv) > 6 else 2.0
+    main(date_input, mode_input, custom_hours_input, pce_s_input, pce_l_input, pce_t_input)
+

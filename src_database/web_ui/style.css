@@ -123,8 +123,8 @@ h1 {
 
 .control-grid {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr;
-  gap: 20px;
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
+  gap: 16px;
   align-items: end;
 }
 
@@ -138,6 +138,37 @@ h1 {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.pce-inputs-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 15, 25, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.pce-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pce-label input {
+  width: 48px;
+  padding: 4px 2px;
+  font-size: 0.82rem;
+  text-align: center;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--primary);
+  font-weight: 700;
 }
 
 input[type="date"], input[type="text"], select, textarea {

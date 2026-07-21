@@ -70,15 +70,15 @@ current_run = {
     "logs": []
 }
 
-def run_analysis_thread(date_str, mode, custom_hours):
+def run_analysis_thread(date_str, mode, custom_hours, pce_s=1.0, pce_l=1.5, pce_t=2.0):
     global current_run
     with state_lock:
         current_run["status"] = "running"
         current_run["progress"] = 0
-        current_run["message"] = f"開始分析 ({date_str}, 模式: {mode})..."
-        current_run["logs"] = [f"=== 開始執行交通量分析 [日期: {date_str}, 模式: {mode}] ==="]
+        current_run["message"] = f"開始分析 ({date_str}, 模式: {mode}, PCE: {pce_s}/{pce_l}/{pce_t})..."
+        current_run["logs"] = [f"=== 開始執行交通量分析 [日期: {date_str}, 模式: {mode}, PCE: S={pce_s}/L={pce_l}/T={pce_t}] ==="]
 
-    cmd = [sys.executable, os.path.join(BASE_DIR, 'src_database', 'generate_traffic_report.py'), date_str, mode, custom_hours]
+    cmd = [sys.executable, os.path.join(BASE_DIR, 'src_database', 'generate_traffic_report.py'), date_str, mode, custom_hours, str(pce_s), str(pce_l), str(pce_t)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', bufsize=1)
 
     for line in iter(proc.stdout.readline, ''):
@@ -574,6 +574,9 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
             date_str = data.get('date', '20260716')
             mode = data.get('mode', 'peak')
             custom_hours = data.get('custom_hours', '')
+            pce_s = float(data.get('pce_s', 1.0))
+            pce_l = float(data.get('pce_l', 1.5))
+            pce_t = float(data.get('pce_t', 2.0))
 
             with state_lock:
                 if current_run["status"] == "running":
@@ -583,7 +586,7 @@ class VDRequestHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(json.dumps({"error": "目前已有任務正在執行中！"}, ensure_ascii=False).encode('utf-8'))
                     return
 
-            t = threading.Thread(target=run_analysis_thread, args=(date_str, mode, custom_hours), daemon=True)
+            t = threading.Thread(target=run_analysis_thread, args=(date_str, mode, custom_hours, pce_s, pce_l, pce_t), daemon=True)
             t.start()
 
             self.send_response(200)

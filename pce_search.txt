@@ -1,0 +1,152 @@
+[
+  {
+    "file": "README.md",
+    "line": 5,
+    "text": "系統自動連結高公局開放資料 API 下載歷史 1 分鐘 XML.GZ 點位數據，擷取特定目標路段 (LinkID)，進行車輛當量 (PCU) 換算、流量加權平均車速統計，並對照交通部《公路容量手冊》與相關規範，自動產出含 **雙碼服務水準 (A1~F6)** 之 OpenPyXL 格式 6 Sheet 綜合 Excel 分析報表。"
+  },
+  {
+    "file": "README.md",
+    "line": 69,
+    "text": "1. **流量與當量換算 (PCPH)**："
+  },
+  {
+    "file": "README.md",
+    "line": 70,
+    "text": "* 小客車 (S)：$1.0$ PCU"
+  },
+  {
+    "file": "README.md",
+    "line": 71,
+    "text": "* 大客車 (L)：$1.5$ PCU"
+  },
+  {
+    "file": "README.md",
+    "line": 72,
+    "text": "* 聯結車 (T)：$2.0$ PCU"
+  },
+  {
+    "file": "README.md",
+    "line": 73,
+    "text": "* 峰期單小時當量 = (2小時總 PCU) / 2"
+  },
+  {
+    "file": "README.md",
+    "line": 89,
+    "text": "* 交通當量/車輛數 (Volume/PCU)：整數（`#,##0`）"
+  },
+  {
+    "file": "README.md",
+    "line": 99,
+    "text": "* **Sheet 3: `0700-0800`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）"
+  },
+  {
+    "file": "README.md",
+    "line": 100,
+    "text": "* **Sheet 4: `0800-0900`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）"
+  },
+  {
+    "file": "README.md",
+    "line": 101,
+    "text": "* **Sheet 5: `1700-1800`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）"
+  },
+  {
+    "file": "README.md",
+    "line": 102,
+    "text": "* **Sheet 6: `1800-1900`**（Raw Data：含 S/L/T 分別數量與速率、總當量及加權速率）"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 233,
+    "text": "final_peak_metrics = {lid: {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}} for lid in target_links}"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 247,
+    "text": "m_pcu_ph = (m_s * 1.0 + m_l * 1.5 + m_t * 2.0) / 2.0"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 256,
+    "text": "e_pcu_ph = (e_s * 1.0 + e_l * 1.5 + e_t * 2.0) / 2.0"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 259,
+    "text": "final_peak_metrics[lid]['morning'] = {'pcu': m_pcu_ph, 'speed': m_avg_spd}"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 260,
+    "text": "final_peak_metrics[lid]['evening'] = {'pcu': e_pcu_ph, 'speed': e_avg_spd}"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 356,
+    "text": "ws_main.cell(row=row_idx, column=6, value=round(row['m_pcu'])).number_format = '#,##0'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 361,
+    "text": "ws_main.cell(row=row_idx, column=10, value=round(row['e_pcu'])).number_format = '#,##0'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 418,
+    "text": "ws_ramp.cell(row=row_idx, column=8, value=round(row['m_pcu'])).number_format = '#,##0'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 423,
+    "text": "ws_ramp.cell(row=row_idx, column=12, value=round(row['e_pcu'])).number_format = '#,##0'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 440,
+    "text": "'總車輛數 (車)', '總當量 (PCU)', '加權速率 (KPH)'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 470,
+    "text": "tot_pcu = round(d['S'] * 1.0 + d['L'] * 1.5 + d['T'] * 2.0)"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 482,
+    "text": "ws.cell(row=row_idx, column=10, value=tot_pcu).number_format = '#,##0'"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 577,
+    "text": "m_data = metrics.get(lid, {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}})"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 580,
+    "text": "m_pcu = m_data['morning']['pcu']"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 582,
+    "text": "e_pcu = m_data['evening']['pcu']"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 587,
+    "text": "m_vc = m_pcu / cap if cap > 0 else 0"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 588,
+    "text": "e_vc = e_pcu / cap if cap > 0 else 0"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 596,
+    "text": "'m_pcu': m_pcu,"
+  },
+  {
+    "file": "src_database\\generate_traffic_report.py",
+    "line": 600,
+    "text": "'e_pcu': e_pcu,"
+  }
+]

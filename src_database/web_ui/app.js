@@ -114,11 +114,22 @@ document.addEventListener('DOMContentLoaded', () => {
     progressContainer.classList.remove('hidden');
     consoleAccordion.open = true;
 
+    const pceS = parseFloat(document.getElementById('pceS')?.value) || 1.0;
+    const pceL = parseFloat(document.getElementById('pceL')?.value) || 1.5;
+    const pceT = parseFloat(document.getElementById('pceT')?.value) || 2.0;
+
     try {
       const resp = await fetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: rawDate, mode: mode, custom_hours: customHours })
+        body: JSON.stringify({
+          date: rawDate,
+          mode: mode,
+          custom_hours: customHours,
+          pce_s: pceS,
+          pce_l: pceL,
+          pce_t: pceT
+        })
       });
       const data = await resp.json();
       if (resp.ok) {
