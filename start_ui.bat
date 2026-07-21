@@ -7,10 +7,12 @@ echo   VD Traffic Report Automation Web UI
 echo ====================================================
 echo.
 
-where python >nul 2>nul
-if %errorlevel% neq 0 goto NO_PYTHON
+if exist python_embed\python.exe goto RUN_PORTABLE
 
 if exist .venv\Scripts\python.exe goto CHECK_VENV_PKGS
+
+where python >nul 2>nul
+if %errorlevel% neq 0 goto NO_PYTHON
 
 echo [Notice] Creating local virtual environment (.venv)...
 python -m venv .venv >nul 2>nul
@@ -26,17 +28,13 @@ goto RUN_WITH_VENV
 if %errorlevel% neq 0 goto INSTALL_TO_VENV
 
 :RUN_WITH_VENV
-echo.
-echo ====================================================
-echo   VD Traffic Report Web UI Server Started!
-echo   Server is running at http://localhost:8000
-echo   Please keep this console window open.
-echo ====================================================
-echo.
-start http://localhost:8000
-.venv\Scripts\python.exe -u src_database/web_server.py 8000
-pause
-exit /b 0
+set "PY_CMD=.venv\Scripts\python.exe"
+goto START_SERVER
+
+:RUN_PORTABLE
+echo [Notice] Using embedded Portable Python core...
+set "PY_CMD=python_embed\python.exe"
+goto START_SERVER
 
 :USE_SYSTEM_PYTHON
 echo [Notice] venv unavailable, using system Python directly...
@@ -48,17 +46,8 @@ python -c "import requests, urllib3, openpyxl" >nul 2>nul
 if %errorlevel% neq 0 goto FAIL_PACKAGES
 
 :RUN_WITH_SYSTEM_PYTHON
-echo.
-echo ====================================================
-echo   VD Traffic Report Web UI Server Started!
-echo   Server is running at http://localhost:8000
-echo   Please keep this console window open.
-echo ====================================================
-echo.
-start http://localhost:8000
-python -u src_database/web_server.py 8000
-pause
-exit /b 0
+set "PY_CMD=python"
+goto START_SERVER
 
 :NO_PYTHON
 echo [Notice] Python environment is not detected on this computer.
@@ -82,3 +71,16 @@ echo [Error] Failed to install packages. Please open CMD and run:
 echo   pip install requests urllib3 openpyxl
 pause
 exit /b 1
+
+:START_SERVER
+echo.
+echo ====================================================
+echo   VD Traffic Report Web UI Server Started!
+echo   Server is running at http://localhost:8000
+echo   Please keep this console window open.
+echo ====================================================
+echo.
+start http://localhost:8000
+%PY_CMD% -u src_database/web_server.py 8000
+pause
+exit /b 0
