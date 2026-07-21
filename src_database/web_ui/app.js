@@ -209,6 +209,14 @@ document.addEventListener('DOMContentLoaded', () => {
       statSubLinks.textContent = `主線 ${data.mainline_count} 筆 | 匝道 ${data.ramp_count} 筆`;
       statMaxVC.textContent = data.max_vc.toFixed(2);
       statMaxVCSeg.textContent = data.max_vc_seg;
+      statWorstLOS.textContent = data.worst_los || 'A1';
+
+      // Update Download Link
+      if (data.report_name) {
+        statLatestReportLink.textContent = `${data.report_name} ⬇️`;
+        statLatestReportLink.href = `/api/download?file=${encodeURIComponent(data.report_name)}`;
+      }
+
       // Update KPI Cards & 24hr Full-Day Cards
       const cardAdt = document.getElementById('cardAdt');
       const cardKFactor = document.getElementById('cardKFactor');
