@@ -357,6 +357,299 @@ def process_vd_data(date_dir, target_links, hours_config, is_weekend=False, mode
         
     return hourly_data, final_peak_metrics, link_vdid_map
 
+SHOULDER_RANGES = [
+    ('國道1號', 'S', 2.79, 5.025),
+    ('國道1號', 'S', 18.2, 23.15),
+    ('國道1號', 'S', 36.22, 41.0),
+    ('國道1號', 'S', 60.88, 62.0),
+    ('國道1號', 'S', 62.8, 65.0),
+    ('國道1號', 'S', 71.72, 83.0),
+    ('國道1號', 'S', 84.5, 86.0),
+    ('國道1號', 'S', 87.29, 91.0),
+    ('國道1號', 'S', 91.59, 93.032),
+    ('國道1號', 'S', 97.45, 99.0),
+    ('國道1號', 'S', 107.53, 109.87),
+    ('國道1號', 'S', 175.005, 178.015),
+    ('國道1號', 'S', 196.765, 198.0),
+    ('國道1號', 'S', 300.63, 302.0),
+    ('國道1號', 'S', 338.95, 341.003),
+    ('國道1號', 'S', 350.25, 354.03),
+    ('國道1號', 'S', 36.0, 363.2),
+    ('國道1號', 'S', 368.5, 369.0),
+    ('國道1號', 'S', 1.49, 2.33),
+    ('國道1號', 'S', 2.66, 4.85),
+    ('國道1號', 'S', 7.3, 8.84),
+    ('國道1號', 'S', 0.5, 11.0),
+    ('國道1號', 'S', 17.05, 22.0),
+    ('國道1號', 'S', 41.0, 48.08),
+    ('國道1號', 'S', 62.0, 64.05),
+    ('國道1號', 'N', 87.0, 90.5),
+    ('國道1號', 'N', 91.0, 93.01),
+    ('國道1號', 'N', 100.0, 109.72),
+    ('國道1號', 'N', 161.0, 162.18),
+    ('國道1號', 'N', 163.0, 164.6),
+    ('國道1號', 'N', 168.0, 172.08),
+    ('國道1號', 'N', 320.07, 323.5),
+    ('國道1號', 'N', 350.05, 353.2),
+    ('國道1號', 'N', 368.0, 368.4),
+    ('國道1號', 'N', 367.0, 368.6),
+    ('國道1號', 'S', 0.0, 16.266),
+    ('國道1號', 'N', 0.0, 20.52),
+    ('國道1號', 'N', 20.8, 25.8),
+    ('國道1號', 'N', 9.95, 26.41),
+    ('國道2號', 'E', 9.68, 10.0),
+    ('國道2號', 'E', 15.12, 18.0),
+    ('國道2號', 'E', 19.25, 20.0),
+    ('國道2號', 'W', 6.04, 8.25),
+    ('國道2號', 'W', 11.0, 14.6),
+    ('國道3號', 'S', 11.55, 12.0),
+    ('國道3號', 'S', 104.0, 109.0),
+    ('國道3號', 'S', 381.3, 383.0),
+    ('國道3號', 'N', 0.0, 0.71),
+    ('國道3號', 'N', 16.55, 17.95),
+    ('國道3號', 'N', 43.05, 46.0),
+    ('國道3號', 'N', 63.25, 67.65),
+    ('國道3號', 'N', 101.55, 103.1),
+    ('國道3號', 'N', 16.0, 16.0),
+    ('國道3號', 'N', 8.0, 15.99),
+    ('國道3號', 'N', 16.0, 16.04),
+    ('國道5號', 'S', 4.0, 4.89),
+    ('國道10號', 'E', 32.58, 33.72),
+]
+
+def check_is_shoulder_open(road_name, road_dir, km):
+    road_norm = road_name.replace('國道', '國').replace('號', '').strip()
+    if road_norm == '國1':
+        road_key = '國道1號'
+    elif road_norm == '國3':
+        road_key = '國道3號'
+    elif road_norm == '國5':
+        road_key = '國道5號'
+    elif road_norm == '國1高架' or road_norm == '汐五及五楊高架' or road_norm == '國道1號高架道路':
+        road_key = '汐五及五楊高架'
+    else:
+        road_key = road_name
+        
+    dir_abbr = road_dir
+    if road_dir == '北上' or road_dir == 'N':
+        dir_abbr = 'N'
+    elif road_dir == '南下' or road_dir == 'S':
+        dir_abbr = 'S'
+    elif road_dir == '往東' or road_dir == 'E':
+        dir_abbr = 'E'
+    elif road_dir == '往西' or road_dir == 'W':
+        dir_abbr = 'W'
+
+    for r_csv, d_dir, min_k, max_k in SHOULDER_RANGES:
+        if r_csv == road_key and d_dir == dir_abbr:
+            if min_k <= km <= max_k:
+                return 'Y'
+    return 'N'
+
+def load_interchange_mileages():
+    import csv
+    import re
+    ic_mileage = {}
+    
+    fw_csv = os.path.join(BASE_DIR, 'reference_files', 'Freeway_Interchanges_Full.csv')
+    if os.path.exists(fw_csv):
+        try:
+            with open(fw_csv, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    cols = list(row.keys())
+                    if len(cols) >= 3:
+                        road = str(row[cols[0]]).strip().replace('臺', '台')
+                        name = str(row[cols[1]]).strip().replace('臺', '台')
+                        km_val = str(row[cols[2]]).strip()
+                        if road and name and km_val:
+                            km_str = re.sub(r'[^0-9.]', '', km_val)
+                            if km_str:
+                                km = float(km_str)
+                                if road not in ic_mileage:
+                                    ic_mileage[road] = {}
+                                ic_mileage[road][name] = km
+                                if '交流道' in name:
+                                    ic_mileage[road][name.replace('交流道', '')] = km
+                                    ic_mileage[road][name.replace('交流道', '').replace('系統', '')] = km
+        except Exception as e:
+            print(f"[Warning] Error loading Freeway_Interchanges_Full.csv: {e}")
+            
+    exp_csv = os.path.join(BASE_DIR, 'reference_files', 'Expressway_Interchanges.csv')
+    if os.path.exists(exp_csv):
+        try:
+            with open(exp_csv, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                for row in reader:
+                    if len(row) >= 3:
+                        road = str(row[0]).strip().replace('臺', '台')
+                        name = str(row[1]).strip().replace('臺', '台')
+                        km_val = str(row[2]).strip()
+                        if road and name and km_val:
+                            km_str = re.sub(r'[^0-9.]', '', km_val)
+                            if km_str:
+                                km = float(km_str)
+                                if road not in ic_mileage:
+                                    ic_mileage[road] = {}
+                                ic_mileage[road][name] = km
+                                if '交流道' in name:
+                                    ic_mileage[road][name.replace('交流道', '')] = km
+                                    ic_mileage[road][name.replace('交流道', '').replace('系統', '')] = km
+        except Exception as e:
+            print(f"[Warning] Error loading Expressway_Interchanges.csv: {e}")
+            
+    for road in ['國道1號', '國道3號', '國道5號', '汐五及五楊高架', '國道1號高架道路']:
+        if road not in ic_mileage:
+            ic_mileage[road] = {}
+    ic_mileage['國道1號']['基隆端'] = 0.0
+    ic_mileage['國道1號']['基隆'] = 1.1
+    ic_mileage['國道1號']['高雄端'] = 373.0
+    ic_mileage['國道1號']['大安溪橋'] = 154.5
+    ic_mileage['國道1號']['瑞隆'] = 373.0
+    ic_mileage['國道1號']['漁港路'] = 374.0
+    ic_mileage['國道3號']['基金'] = 0.0
+    ic_mileage['國道3號']['林邊'] = 427.0
+    ic_mileage['國道3號']['大鵬灣端'] = 431.5
+    ic_mileage['國道5號']['南港系統'] = 0.0
+    ic_mileage['國道5號']['蘇澳'] = 54.0
+    
+    viaduct_ics = {
+        '汐止': 13.0, '汐止端': 13.0,
+        '堤頂': 18.0,
+        '環北': 26.0,
+        '下塔悠': 20.0,
+        '五股': 31.0, '五股轉接道': 31.0,
+        '泰山': 35.8, '泰山轉接道': 35.8,
+        '機場系統': 52.5, '機場系統轉接道': 52.5,
+        '中壢': 59.0, '中壢轉接道': 59.0,
+        '校前路': 70.0,
+        '楊梅': 71.0, '楊梅端': 71.0
+    }
+    ic_mileage['汐五及五楊高架'] = viaduct_ics
+    ic_mileage['國道1號高架道路'] = viaduct_ics
+    
+    return ic_mileage
+
+def resolve_excel_segments(xlsx_path, ic_mileage):
+    import re
+    resolved_rows = []
+    
+    if not os.path.exists(xlsx_path):
+        print(f"[Warning] Excel file not found: {xlsx_path}")
+        return []
+        
+    try:
+        wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+        ws = wb.active
+        
+        excel_to_csv_road = {
+            '國1': '國道1號',
+            '國1高架': '國道1號高架道路',
+            '國2': '國道2號',
+            '國2甲': '國道2號甲線',
+            '國3': '國道3號',
+            '國3甲': '國道3號甲線',
+            '國4': '國道4號',
+            '國5': '國道5號',
+            '國6': '國道6號',
+            '國8': '國道8號',
+            '國10': '國道10號',
+        }
+        
+        def resolve_endpoint_km(road_csv, endpoint_desc):
+            m = re.search(r'([0-9.]+)[Kk]', endpoint_desc)
+            if m:
+                return float(m.group(1))
+            road_ics = ic_mileage.get(road_csv, {})
+            if endpoint_desc in road_ics:
+                return road_ics[endpoint_desc]
+            sorted_ic_names = sorted(road_ics.keys(), key=lambda x: len(x), reverse=True)
+            for ic in sorted_ic_names:
+                if ic in endpoint_desc:
+                    return road_ics[ic]
+            return None
+
+        for r in range(2, ws.max_row + 1):
+            road = ws.cell(row=r, column=1).value
+            seg = ws.cell(row=r, column=2).value
+            if road and seg:
+                road_str = str(road).strip().replace('臺', '台')
+                seg_str = str(seg).strip().replace('臺', '台')
+                road_csv = excel_to_csv_road.get(road_str, road_str)
+                
+                if seg_str.endswith("區間"):
+                    clean_name = seg_str.replace("區間", "").strip()
+                    km = resolve_endpoint_km(road_csv, clean_name)
+                    if km is not None:
+                        resolved_rows.append({
+                            'road': road_csv,
+                            'segment': seg_str,
+                            'min_km': km - 1.3,
+                            'max_km': km + 1.3,
+                            'is_zone': True,
+                            'lanes_south': ws.cell(row=r, column=3).value,
+                            'lanes_north': ws.cell(row=r, column=4).value,
+                            'speed_south': ws.cell(row=r, column=6).value,
+                            'speed_north': ws.cell(row=r, column=7).value
+                        })
+                        continue
+                        
+                parts = re.split(r'[～－\-~]', seg_str)
+                if len(parts) == 2:
+                    km1 = resolve_endpoint_km(road_csv, parts[0].strip())
+                    km2 = resolve_endpoint_km(road_csv, parts[1].strip())
+                    if km1 is not None and km2 is not None:
+                        resolved_rows.append({
+                            'road': road_csv,
+                            'segment': seg_str,
+                            'min_km': min(km1, km2),
+                            'max_km': max(km1, km2),
+                            'is_zone': False,
+                            'lanes_south': ws.cell(row=r, column=3).value,
+                            'lanes_north': ws.cell(row=r, column=4).value,
+                            'speed_south': ws.cell(row=r, column=6).value,
+                            'speed_north': ws.cell(row=r, column=7).value
+                        })
+                        
+    except Exception as e:
+        print(f"[Warning] Error parsing 國道車道數、速限.xlsx: {e}")
+        
+    return resolved_rows
+
+def parse_speed_limit(val, default_limit=100.0):
+    if val is None:
+        return default_limit
+    import re
+    val_str = str(val).strip()
+    m = re.search(r'最高\s*(\d+)', val_str)
+    if m:
+        return float(m.group(1))
+    m = re.search(r'(\d+)', val_str)
+    if m:
+        return float(m.group(1))
+    return default_limit
+
+def parse_lane_count(val, default_lanes=3):
+    if val is None:
+        return default_lanes
+    val_str = str(val).strip()
+    val_str_clean = val_str.replace('車', '').replace('路肩', '').replace(' ', '').strip()
+    if '+' in val_str_clean:
+        parts = val_str_clean.split('+')
+        try:
+            return int(float(parts[0])) + int(float(parts[1]))
+        except ValueError:
+            try:
+                return int(float(parts[0]))
+            except ValueError:
+                return default_lanes
+    else:
+        try:
+            return int(float(val_str_clean))
+        except ValueError:
+            return default_lanes
+
 def load_link_metadata(vd_xml_path, target_links):
     if not os.path.exists(vd_xml_path):
         return {}
@@ -369,6 +662,7 @@ def load_link_metadata(vd_xml_path, target_links):
     for vd in root.iter(f'{ns}VD'):
         vd_id = vd.findtext(f'{ns}VDID')
         road_name = vd.findtext(f'{ns}RoadName') or '國道2號'
+        location_mile = vd.findtext(f'{ns}LocationMile')
         
         for dlink in vd.iter(f'{ns}DetectionLink'):
             link_id = dlink.findtext(f'{ns}LinkID')
@@ -386,7 +680,8 @@ def load_link_metadata(vd_xml_path, target_links):
                     'road_dir': dir_text,
                     'lanes': lane_num,
                     'is_mainline': is_mainline,
-                    'feature_code': feature_code
+                    'feature_code': feature_code,
+                    'location_mile': location_mile
                 }
                 
     return metadata
@@ -755,43 +1050,120 @@ def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l
     mainline_rows = []
     ramp_rows = []
     
-    segment_map = {
-        '0000200000200H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200100200H': ('大園-大竹', 100.0, 5, 'N', 7400.0),
-        '0000200000400H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200100300H': ('大園-大竹', 100.0, 4, 'N', 7400.0),
-        '0000200000600H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
-        '0000200100600H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
-        '0000200000700H': ('大竹-機場系統', 100.0, 4, 'N', 7400.0),
-        '0000200100700H': ('大竹-機場系統', 100.0, 5, 'N', 8450.0),
-        '0000200001000H': ('機場系統-南桃園', 100.0, 4, 'Y', 6760.0),
-        '0000200101000H': ('機場系統-南桃園', 100.0, 3, 'N', 5700.0),
-        '0000200001200H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
-        '0000200101200H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
-        '0000200001400H': ('南桃園-大湳', 100.0, 3, 'Y', 6760.0),
-        '0000200101400H': ('南桃園-大湳', 100.0, 4, 'Y', 6760.0),
-        '0000200001600H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-        '0000200101600H': ('大湳-鶯歌系統', 100.0, 3, 'Y', 6760.0),
-        '0000200001910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-        '0000200101910H': ('大湳-鶯歌系統', 100.0, 4, 'Y', 6760.0),
-    }
-    
-    ramp_map = {
-        '0000201001000H': ('大園交流道', '往東', '出口', '大園', 3800.0, 50.0),
-        '0000201101040H': ('大園交流道', '往西', '入口', '大園', 3000.0, 50.0),
-    }
+    ic_mileage = load_interchange_mileages()
+    resolved_segments = resolve_excel_segments(os.path.join(BASE_DIR, 'reference_files', '國道車道數、速限.xlsx'), ic_mileage)
     
     for lid in target_links:
         m_data = metrics.get(lid, {'morning': {'pcu': 0, 'speed': 0}, 'evening': {'pcu': 0, 'speed': 0}})
-        info = meta.get(lid, {'road_name': '國道2號', 'road_dir': '往東', 'lanes': 3, 'is_mainline': True})
+        info = meta.get(lid)
         
+        if not info:
+            prefix = lid[:5] if len(lid) >= 5 else ''
+            road_map = {
+                '00001': '國道1號',
+                '00002': '國道2號',
+                '00003': '國道3號',
+                '00004': '國道4號',
+                '00005': '國道5號',
+                '00006': '國道6號',
+                '00008': '國道8號',
+                '00010': '國道10號',
+            }
+            road_name = road_map.get(prefix, '國道2號')
+            feature_code = lid[6] if len(lid) >= 7 else '0'
+            is_mainline = (feature_code == '0')
+            direction_char = lid[7] if len(lid) >= 8 else '0'
+            
+            is_east_west = any(r in road_name for r in ('2號', '4號', '6號', '8號', '10號', '2甲', '3甲'))
+            if is_east_west:
+                road_dir = '往東' if direction_char == '0' else '往西'
+            else:
+                road_dir = '南下' if direction_char == '0' else '北上'
+            
+            info = {
+                'vd_id': f"VD-{lid}",
+                'road_name': road_name,
+                'road_dir': road_dir,
+                'lanes': 3,
+                'is_mainline': is_mainline,
+                'feature_code': feature_code,
+                'location_mile': None
+            }
+            
         m_pcu = m_data['morning']['pcu']
         m_spd = m_data['morning']['speed']
         e_pcu = m_data['evening']['pcu']
         e_spd = m_data['evening']['speed']
         
-        if lid in segment_map:
-            seg_name, limit, lanes, shoulder, cap = segment_map[lid]
+        link_km = None
+        location_mile = info.get('location_mile')
+        if location_mile:
+            import re
+            m = re.match(r'(\d+)K\+(\d+)', str(location_mile).strip())
+            if m:
+                link_km = float(m.group(1)) + float(m.group(2)) / 1000.0
+                
+        if link_km is None:
+            if len(lid) >= 13:
+                try:
+                    mile_str = lid[8:13]
+                    if info['is_mainline']:
+                        link_km = float(mile_str) / 100.0
+                    else:
+                        link_km = float(mile_str) / 1000.0
+                except ValueError:
+                    link_km = 0.0
+            else:
+                link_km = 0.0
+                
+        if info['is_mainline']:
+            matched_seg = None
+            road_norm = info['road_name'].replace('臺', '台').strip()
+            if road_norm == '國1高架':
+                road_norm = '國道1號高架道路'
+                
+            for r_seg in resolved_segments:
+                if r_seg['road'] == road_norm and r_seg['is_zone']:
+                    if r_seg['min_km'] <= link_km <= r_seg['max_km']:
+                        matched_seg = r_seg
+                        break
+            if not matched_seg:
+                for r_seg in resolved_segments:
+                    if r_seg['road'] == road_norm and not r_seg['is_zone']:
+                        if r_seg['min_km'] <= link_km <= r_seg['max_km']:
+                            matched_seg = r_seg
+                            break
+                            
+            if matched_seg:
+                seg_name = matched_seg['segment'].replace('區間', '').strip()
+                is_north_west = info['road_dir'] in ('北上', '往西', 'N', 'W')
+                raw_lanes = matched_seg['lanes_north'] if is_north_west else matched_seg['lanes_south']
+                raw_speed = matched_seg['speed_north'] if is_north_west else matched_seg['speed_south']
+                
+                default_spd = 100.0
+                if '3號' in road_norm or '國3' in road_norm:
+                    default_spd = 110.0
+                elif '5號' in road_norm or '國5' in road_norm or '8號' in road_norm or '國8' in road_norm or '10號' in road_norm or '國10' in road_norm:
+                    default_spd = 80.0 if link_km <= 15.0 else 90.0
+                elif '國1高架' in road_norm or '五楊' in road_norm or '汐五' in road_norm:
+                    default_spd = 100.0
+                    
+                limit = parse_speed_limit(raw_speed, default_spd)
+                lanes = parse_lane_count(raw_lanes, info['lanes'])
+            else:
+                seg_name = f"{info['road_name']} {info['road_dir']} {link_km:.1f}K"
+                lanes = info['lanes']
+                
+                default_spd = 100.0
+                if '3號' in info['road_name'] or '國3' in info['road_name']:
+                    default_spd = 110.0
+                elif '5號' in info['road_name'] or '國5' in info['road_name'] or '8號' in info['road_name'] or '國8' in info['road_name'] or '10號' in info['road_name'] or '國10' in info['road_name']:
+                    default_spd = 80.0 if link_km <= 15.0 else 90.0
+                limit = default_spd
+                
+            open_shoulder = check_is_shoulder_open(info['road_name'], info['road_dir'], link_km)
+            cap = get_mainline_capacity(limit, lanes, open_shoulder)
+            
             m_vc = m_pcu / cap if cap > 0 else 0
             e_vc = e_pcu / cap if cap > 0 else 0
             
@@ -811,16 +1183,49 @@ def main(date_str='20260716', mode='peak', custom_hours_str='', pce_s=1.0, pce_l
                 'e_speed': e_spd,
                 'e_los': calculate_los(e_vc, e_spd, limit)
             })
-        elif lid in ramp_map:
-            ic_name, direction, in_out, dest, cap, limit = ramp_map[lid]
+        else:
+            road_ics = ic_mileage.get(info['road_name'], {})
+            closest_ic = "交流道"
+            min_dist = 9999.9
+            for ic_name, ic_km in road_ics.items():
+                dist = abs(ic_km - link_km)
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_ic = ic_name
+                    
+            if not closest_ic.endswith('交流道') and not closest_ic.endswith('系統') and not closest_ic.endswith('端'):
+                closest_ic = closest_ic + '交流道'
+                
+            vd_id_upper = str(info['vd_id']).upper()
+            if '-I-' in vd_id_upper or '匝-入' in vd_id_upper or '匝-加速' in vd_id_upper or '入' in vd_id_upper:
+                in_out = '入口'
+            elif '-O-' in vd_id_upper or '匝-出' in vd_id_upper or '匝-減速' in vd_id_upper or '出' in vd_id_upper:
+                in_out = '出口'
+            else:
+                in_out = '出口'
+                
+            if lid == '0000201101040H':
+                in_out = '入口'
+            elif lid == '0000201001000H':
+                in_out = '出口'
+                
+            if "環" in str(info['vd_id']) or "LOOP" in vd_id_upper:
+                limit = 40.0
+            else:
+                limit = 50.0
+                
+            lanes = info['lanes']
+            cap = get_ramp_capacity(in_out, lanes)
+            dest = closest_ic.replace('交流道', '').strip()
+            
             m_vc = m_pcu / cap if cap > 0 else 0
             e_vc = e_pcu / cap if cap > 0 else 0
             
             ramp_rows.append({
                 'link_id': lid,
                 'road_name': info['road_name'],
-                'interchange': ic_name,
-                'direction': direction,
+                'interchange': closest_ic,
+                'direction': info['road_dir'],
                 'in_out': in_out,
                 'destination': dest,
                 'capacity': cap,
